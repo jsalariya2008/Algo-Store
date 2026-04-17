@@ -1,4 +1,4 @@
-Flask==3.0.0
+Flask==2.3.3 
 Flask-MySQLdb==1.0.1
 Flask-Mail==0.9.1
 Werkzeug==3.0.1
