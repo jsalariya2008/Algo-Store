@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% block title %}Lookbook — ALGO{% endblock %}
+{% block body_class %}lookbook-page{% endblock %}
+
+{% block content %}
+<div class="lookbook-hero">
+  <div class="lookbook-hero__content">
+    <p class="lookbook-hero__label">Visual Stories</p>
+    <h1 class="lookbook-hero__title">The Lookbook</h1>
+    <p class="lookbook-hero__sub">A journey through streets, stories, and style.</p>
+  </div>
+</div>
+
+<section class="lookbook-body">
+  <!-- Chapter 01 -->
+  <div class="lookbook-chapter">
+    <div class="lookbook-chapter__header">
+      <span class="lookbook-chapter__num">01</span>
+      <h2 class="lookbook-chapter__title">Street Culture</h2>
+      <p class="lookbook-chapter__desc">Where fashion meets the footpath. The streets of India breathe style without trying.</p>
+    </div>
+    <div class="lookbook-masonry">
+      <div class="lb-item lb-item--tall lb-color--1">
+        <div class="lb-item__inner">
+          <div class="lb-item__content">
+            <span class="lb-item__label">Street Series</span>
+          </div>
+        </div>
+      </div>
+      <div class="lb-item lb-color--2">
+        <div class="lb-item__inner">
+          <div class="lb-item__content">
+            <span class="lb-item__label">Urban Identity</span>
+          </div>
+        </div>
+      </div>
+      <div class="lb-item lb-color--3">
+        <div class="lb-item__inner">
+          <div class="lb-item__content">
+            <span class="lb-item__label">Raw Expression</span>
+          </div>
+        </div>
+      </div>
+      <div class="lb-item lb-item--wide lb-color--4">
+        <div class="lb-item__inner">
+          <div class="lb-item__content">
+            <span class="lb-item__label">Bazaar Aesthetic</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chapter 02 -->
+  <div class="lookbook-chapter lookbook-chapter--alt">
+    <div class="lookbook-chapter__header">
+      <span class="lookbook-chapter__num">02</span>
+      <h2 class="lookbook-chapter__title">Urban Nights</h2>
+      <p class="lookbook-chapter__desc">The city never sleeps and neither does ALGO.</p>
+    </div>
+    <div class="lookbook-horizontal" id="hScroll">
+      <div class="lb-h-item lb-color--5">
+        <div class="lb-h-item__label">Night Shift</div>
+      </div>
+      <div class="lb-h-item lb-color--6">
+        <div class="lb-h-item__label">City Pulse</div>
+      </div>
+      <div class="lb-h-item lb-color--7">
+        <div class="lb-h-item__label">Concrete Dreams</div>
+      </div>
+      <div class="lb-h-item lb-color--8">
+        <div class="lb-h-item__label">Late Hours</div>
+      </div>
+      <div class="lb-h-item lb-color--1">
+        <div class="lb-h-item__label">Rooftop Culture</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chapter 03 -->
+  <div class="lookbook-chapter">
+    <div class="lookbook-chapter__header">
+      <span class="lookbook-chapter__num">03</span>
+      <h2 class="lookbook-chapter__title">Mitti & Rang</h2>
+      <p class="lookbook-chapter__desc">Earth tones. Block print. The colors of India — reborn in streetwear.</p>
+    </div>
+    <div class="lookbook-grid-3">
+      {% for i in range(6) %}
+      <div class="lb-g3-item lb-color--{{ (i % 8) + 1 }}">
+        <div class="lb-g3-item__overlay">
+          <span>Chapter 03 — {{ i+1 }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- CTA -->
+  <div class="lookbook-cta">
+    <h2>Ready to wear your story?</h2>
+    <a href="{{ url_for('collection') }}" class="btn btn--primary">Shop the Collection</a>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Drag scroll for horizontal lookbook
+const hScroll = document.getElementById('hScroll');
+if (hScroll) {
+  let isDown = false, startX, scrollLeft;
+  hScroll.addEventListener('mousedown', e => {
+    isDown = true;
+    startX = e.pageX - hScroll.offsetLeft;
+    scrollLeft = hScroll.scrollLeft;
+    hScroll.style.cursor = 'grabbing';
+  });
+  hScroll.addEventListener('mouseleave', () => { isDown = false; hScroll.style.cursor = 'grab'; });
+  hScroll.addEventListener('mouseup', () => { isDown = false; hScroll.style.cursor = 'grab'; });
+  hScroll.addEventListener('mousemove', e => {
+    if (!isDown) return;
+    e.preventDefault();
+    const x = e.pageX - hScroll.offsetLeft;
+    hScroll.scrollLeft = scrollLeft - (x - startX) * 1.5;
+  });
+}
+
+// Stagger animation
+document.querySelectorAll('.lb-item, .lb-h-item, .lb-g3-item').forEach((el, i) => {
+  el.style.transitionDelay = (i * 0.05) + 's';
+});
+</script>
+{% endblock %}

@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+{% block title %}Your Bag — ALGO{% endblock %}
+
+{% block content %}
+<div class="cart-page">
+  <div class="page-hero page-hero--sm">
+    <h1 class="page-hero__title">Your Bag</h1>
+    <p class="page-hero__sub">{{ items|length }} item{% if items|length != 1 %}s{% endif %}</p>
+  </div>
+
+  <div class="cart-layout">
+    {% if items %}
+    <div class="cart-items">
+      {% for item in items %}
+      <div class="cart-item" id="item-{{ item.id }}_{{ item.size }}">
+        <div class="cart-item__image">
+          {% if item.image_url %}
+            <img src="{{ item.image_url }}" alt="{{ item.name }}">
+          {% else %}
+            <div class="cart-item__placeholder">{{ item.name[:2].upper() }}</div>
+          {% endif %}
+        </div>
+        <div class="cart-item__info">
+          <div class="cart-item__top">
+            <div>
+              <span class="cart-item__cat">{{ item.category }}</span>
+              <h3 class="cart-item__name">{{ item.name }}</h3>
+              <span class="cart-item__size">Size: {{ item.size }}</span>
+            </div>
+            <button class="cart-item__remove"
+                    onclick="removeItem('{{ item.id }}_{{ item.size }}', this)">✕</button>
+          </div>
+          <div class="cart-item__bottom">
+            <div class="qty-control">
+              <button onclick="updateQty('{{ item.id }}_{{ item.size }}', {{ item.qty - 1 }})">−</button>
+              <span class="qty-value" id="qty-{{ item.id }}_{{ item.size }}">{{ item.qty }}</span>
+              <button onclick="updateQty('{{ item.id }}_{{ item.size }}', {{ item.qty + 1 }})">+</button>
+            </div>
+            <span class="cart-item__price" id="price-{{ item.id }}_{{ item.size }}">
+              ₹{{ "%.0f"|format(item.subtotal) }}
+            </span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+<form method="POST" action="{{ url_for('checkout') }}">
+  <button type="submit" class="btn btn--primary btn--full">
+    Proceed to Checkout
+  </button>
+</form>
+    <div class="cart-summary">
+      <div class="cart-summary__inner">
+        <h2 class="cart-summary__title">Order Summary</h2>
+        <div class="cart-summary__row">
+          <span>Subtotal</span>
+          <span id="subtotal">₹{{ "%.0f"|format(total) }}</span>
+        </div>
+        <div class="cart-summary__row">
+          <span>Shipping</span>
+          <span>{% if total >= 999 %}Free{% else %}₹99{% endif %}</span>
+        </div>
+        <div class="cart-summary__divider"></div>
+        <div class="cart-summary__row cart-summary__row--total">
+          <span>Total</span>
+          <span id="cartTotal">₹{{ "%.0f"|format(total + (0 if total >= 999 else 99)) }}</span>
+        </div>
+        {% if session.get('user_id') %}
+          <a href="#" class="btn btn--primary btn--full cart-summary__checkout">Proceed to Checkout</a>
+        {% else %}
+          <a href="{{ url_for('login') }}" class="btn btn--primary btn--full cart-summary__checkout">Login to Checkout</a>
+        {% endif %}
+        <a href="{{ url_for('collection') }}" class="cart-summary__continue">← Continue Shopping</a>
+        <div class="cart-summary__note">
+          Free shipping on orders above ₹999
+        </div>
+      </div>
+    </div>
+
+    {% else %}
+    <div class="cart-empty">
+      <div class="cart-empty__icon">
+        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+          <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <path d="M16 10a4 4 0 01-8 0"/>
+        </svg>
+      </div>
+      <h2>Your bag is empty</h2>
+      <p>Discover pieces that tell your story.</p>
+      <a href="{{ url_for('collection') }}" class="btn btn--primary">Explore Collection</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function removeItem(key, btn) {
+  fetch('/cart/remove', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({key})
+  }).then(r => r.json()).then(() => {
+    const el = document.getElementById('item-' + key);
+    el.style.opacity = '0';
+    el.style.transform = 'translateX(20px)';
+    setTimeout(() => { el.remove(); location.reload(); }, 300);
+  });
+}
+
+function updateQty(key, qty) {
+  if (qty < 1) { removeItem(key); return; }
+  fetch('/cart/update', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({key, qty})
+  }).then(() => location.reload());
+}
+</script>
+{% endblock %}

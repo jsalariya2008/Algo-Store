@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% block title %}Collection — ALGO{% endblock %}
+{% block body_class %}collection-page{% endblock %}
+
+{% block content %}
+<div class="page-hero page-hero--collection">
+  <div class="page-hero__content">
+    <p class="page-hero__label">ALGO × 2026</p>
+    <h1 class="page-hero__title">The Collection</h1>
+    <p class="page-hero__sub">{{ products|length }} Pieces</p>
+  </div>
+</div>
+
+<section class="collection-section">
+  <!-- Filters -->
+  <div class="filters">
+    <div class="filters__inner">
+      <a href="{{ url_for('collection') }}" class="filter-tag {% if not selected %}filter-tag--active{% endif %}">All</a>
+      {% for cat in categories %}
+      <a href="{{ url_for('collection', category=cat) }}" class="filter-tag {% if selected == cat %}filter-tag--active{% endif %}">{{ cat }}</a>
+      {% endfor %}
+    </div>
+    <div class="filters__count">{{ products|length }} items</div>
+  </div>
+
+  <!-- Grid -->
+  <div class="product-grid product-grid--full" id="productGrid">
+    {% for product in products %}
+    <article class="product-card" data-category="{{ product.category }}">
+      <a href="{{ url_for('product_detail', product_id=product.id) }}" class="product-card__image-link">
+        <div class="product-card__frame">
+          <div class="product-card__artwork">
+            {% if product.image_url %}
+              <img src="{{ product.image_url }}" alt="{{ product.name }}" loading="lazy">
+            {% else %}
+              <div class="product-card__placeholder">
+                <span>{{ product.name[:2].upper() }}</span>
+                <div class="product-card__placeholder-lines">
+                  <div></div><div></div><div></div>
+                </div>
+              </div>
+            {% endif %}
+          </div>
+          <div class="product-card__overlay">
+            <span>View Piece</span>
+          </div>
+          {% if product.stock < 10 and product.stock > 0 %}
+            <div class="product-card__badge product-card__badge--low">Few Left</div>
+          {% elif product.stock == 0 %}
+            <div class="product-card__badge product-card__badge--sold">Sold Out</div>
+          {% endif %}
+        </div>
+      </a>
+      <div class="product-card__info">
+        <div class="product-card__meta">
+          <span class="product-card__category">{{ product.category }}</span>
+          {% if product.stock > 0 %}
+            <span class="product-card__stock">In Stock</span>
+          {% endif %}
+        </div>
+        <h3 class="product-card__name">
+          <a href="{{ url_for('product_detail', product_id=product.id) }}">{{ product.name }}</a>
+        </h3>
+        <p class="product-card__desc">{{ product.description[:80] }}{% if product.description|length > 80 %}…{% endif %}</p>
+        <div class="product-card__footer">
+          <span class="product-card__price">₹{{ "%.0f"|format(product.price) }}</span>
+          {% if product.stock > 0 %}
+            <button class="product-card__btn" onclick="quickAdd({{ product.id }}, '{{ product.name }}')">+ Bag</button>
+          {% else %}
+            <button class="product-card__btn product-card__btn--disabled" disabled>Sold Out</button>
+          {% endif %}
+        </div>
+      </div>
+    </article>
+    {% else %}
+    <div class="empty-state">
+      <p>No products in this category yet.</p>
+      <a href="{{ url_for('collection') }}" class="btn btn--outline">View All</a>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function quickAdd(id, name) {
+  fetch('/cart/add', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({product_id: id, size: 'M', qty: 1})
+  }).then(r => r.json()).then(d => {
+    document.getElementById('cartCount').textContent = d.cart_count;
+    showToast(name + ' added to bag');
+  });
+}
+
+// Animate cards on load
+document.querySelectorAll('.product-card').forEach((card, i) => {
+  card.style.animationDelay = (i * 0.07) + 's';
+  card.classList.add('card-enter');
+});
+</script>
+{% endblock %}

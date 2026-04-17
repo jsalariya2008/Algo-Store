@@ -1,0 +1,186 @@
+{% extends 'base.html' %}
+{% block title %}ALGO — Wear Your Story{% endblock %}
+{% block body_class %}home{% endblock %}
+
+{% block content %}
+
+<!-- ── HERO ─────────────────────────────────────────────────────────── -->
+<section class="hero" id="hero">
+  <div class="hero__bg">
+    <div class="hero__texture"></div>
+  </div>
+  <div class="hero__content">
+    <p class="hero__label reveal-up">New Season - 2026</p>
+    <h1 class="hero__title reveal-up delay-1">
+      <span class="hero__title-line">ALGO</span>
+    </h1>
+    <p class="hero__tagline reveal-up delay-2">Wear Your Story</p>
+    <p class="hero__sub reveal-up delay-3">
+      Street culture. Artistic expression.<br>Indian identity.
+    </p>
+    <a href="{{ url_for('collection') }}" class="btn btn--primary reveal-up delay-4">
+      <span>Explore Collection</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M5 12h14M12 5l7 7-7 7"/>
+      </svg>
+    </a>
+  </div>
+  <div class="hero__scroll-hint">
+    <span>Scroll</span>
+    <div class="hero__scroll-line"></div>
+  </div>
+</section>
+
+<!-- ── MANIFESTO ─────────────────────────────────────────────────────── -->
+<section class="manifesto">
+  <div class="manifesto__inner">
+    <div class="manifesto__number">01</div>
+    <blockquote class="manifesto__quote">
+      "We don't follow trends we create our own
+      <em>ALGO.</em>"
+    </blockquote>
+  </div>
+</section>
+
+<!-- ── FEATURED COLLECTION ───────────────────────────────────────────── -->
+<section class="section featured" id="collection">
+  <div class="section__header">
+    <div class="section__number">02</div>
+    <h2 class="section__title">The Collection</h2>
+    <a href="{{ url_for('collection') }}" class="section__link">View All →</a>
+  </div>
+
+  <div class="product-grid product-grid--featured">
+    {% for product in featured %}
+    <article class="product-card" data-id="{{ product.id }}">
+      <a href="{{ url_for('product_detail', product_id=product.id) }}" class="product-card__image-link">
+        <div class="product-card__frame">
+          <div class="product-card__artwork">
+            {% if product.image_url %}
+              <img src="{{ product.image_url }}" alt="{{ product.name }}" loading="lazy">
+            {% else %}
+              <div class="product-card__placeholder">
+                <span class="product-card__placeholder-text">{{ product.name[0] }}</span>
+              </div>
+            {% endif %}
+          </div>
+          <div class="product-card__overlay">
+            <span>View Piece</span>
+          </div>
+        </div>
+      </a>
+      <div class="product-card__info">
+        <div class="product-card__meta">
+          <span class="product-card__category">{{ product.category }}</span>
+        </div>
+        <h3 class="product-card__name">
+          <a href="{{ url_for('product_detail', product_id=product.id) }}">{{ product.name }}</a>
+        </h3>
+        <div class="product-card__footer">
+          <span class="product-card__price">₹{{ "%.0f"|format(product.price) }}</span>
+          <button class="product-card__btn" onclick="quickAdd({{ product.id }}, '{{ product.name }}')">+ Bag</button>
+        </div>
+      </div>
+    </article>
+    {% else %}
+    <div class="empty-state">
+      <p>Collection dropping soon.</p>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- ── CULTURE STRIP ──────────────────────────────────────────────────── -->
+<section class="culture-strip">
+  <div class="culture-strip__track">
+    <span>Street Culture</span>
+    <span class="sep">✦</span>
+    <span>Indian Identity</span>
+    <span class="sep">✦</span>
+    <span>Artistic Expression</span>
+    <span class="sep">✦</span>
+    <span>Wear Your Story</span>
+    <span class="sep">✦</span>
+    <span>ALGO</span>
+    <span class="sep">✦</span>
+    <span>Street Culture</span>
+    <span class="sep">✦</span>
+    <span>Indian Identity</span>
+    <span class="sep">✦</span>
+    <span>Artistic Expression</span>
+    <span class="sep">✦</span>
+    <span>Wear Your Story</span>
+    <span class="sep">✦</span>
+    <span>ALGO</span>
+    <span class="sep">✦</span>
+  </div>
+</section>
+
+<!-- ── UPCOMING DROPS ────────────────────────────────────────────────── -->
+<section class="section drops" id="drops">
+  <div class="section__header">
+    <div class="section__number">03</div>
+    <h2 class="section__title">Upcoming Drops</h2>
+    <span class="section__badge">Coming Soon</span>
+  </div>
+
+  <div class="drops-grid">
+    {% for item in upcoming %}
+    <div class="drop-card">
+      <div class="drop-card__inner">
+        <div class="drop-card__visual">
+          <div class="drop-card__blur-layer"></div>
+          <div class="drop-card__lock">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+            <span>Unrevealed</span>
+          </div>
+        </div>
+        <div class="drop-card__info">
+          <span class="drop-card__season">Season 02</span>
+          <h3 class="drop-card__name">{{ item.name }}</h3>
+          <p class="drop-card__desc">{{ item.description }}</p>
+          <button class="drop-card__notify">Notify Me</button>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- ── LOOKBOOK TEASER ───────────────────────────────────────────────── -->
+<section class="lookbook-teaser">
+  <div class="lookbook-teaser__content">
+    <div class="lookbook-teaser__number">04</div>
+    <h2 class="lookbook-teaser__title">The Lookbook</h2>
+    <p>Style is the story you tell without saying a word. Browse our curated visual world.</p>
+    <a href="{{ url_for('lookbook') }}" class="btn btn--outline">Enter the Gallery</a>
+  </div>
+  <div class="lookbook-teaser__visual">
+    <div class="lookbook-teaser__grid">
+      <div class="lb-cell lb-cell--1"></div>
+      <div class="lb-cell lb-cell--2"></div>
+      <div class="lb-cell lb-cell--3"></div>
+      <div class="lb-cell lb-cell--4"></div>
+    </div>
+  </div>
+</section>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function quickAdd(id, name) {
+  fetch('/cart/add', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({product_id: id, size: 'M', qty: 1})
+  }).then(r => r.json()).then(d => {
+    document.getElementById('cartCount').textContent = d.cart_count;
+    showToast(name + ' added to bag');
+  });
+}
+</script>
+{% endblock %}

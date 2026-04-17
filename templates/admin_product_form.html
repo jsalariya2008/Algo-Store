@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}{% if product %}Edit{% else %}Add{% endif %} Product—ALGO Admin{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+  <div class="admin-header">
+    <div>
+      <h1 class="admin-title">{% if product %}Edit Product{% else %}Add New Product{% endif %}</h1>
+    </div>
+    <a href="{{ url_for('admin') }}" class="btn btn--ghost">← Back</a>
+  </div>
+
+  <div class="admin-form-wrap">
+    <form method="POST" enctype="multipart/form-data" class="admin-form">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Product Name *</label>
+          <input class="form-input" type="text" name="name" required
+                 value="{{ product.name if product else '' }}" placeholder="e.g. BHARAT FIRE TEE">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Category</label>
+          <select class="form-input" name="category">
+            {% for cat in ['T-Shirts','Hoodies','Jackets','Shirts','Bottoms','Accessories'] %}
+            <option value="{{ cat }}" {% if product and product.category == cat %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Price (₹) *</label>
+          <input class="form-input" type="number" name="price" step="0.01" required
+                 value="{{ product.price if product else '' }}" placeholder="1299.00">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Stock</label>
+          <input class="form-input" type="number" name="stock"
+                 value="{{ product.stock if product else 0 }}" min="0">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea class="form-input form-textarea" name="description" rows="4"
+                  placeholder="Describe this piece...">{{ product.description if product else '' }}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Product Image</label>
+        <input class="form-input" type="file" name="image" accept="image/*">
+        {% if product and product.image_url %}
+          <div class="current-image">
+            <img src="{{ product.image_url }}" alt="Current">
+            <span>Current image</span>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="form-row form-row--checks">
+        <label class="form-check">
+          <input type="checkbox" name="is_upcoming"
+                 {% if product and product.is_upcoming %}checked{% endif %}>
+          <span>Mark as Upcoming Drop</span>
+        </label>
+        {% if product %}
+        <label class="form-check">
+          <input type="checkbox" name="is_active"
+                 {% if product.is_active %}checked{% endif %}>
+          <span>Active (visible in store)</span>
+        </label>
+        {% endif %}
+      </div>
+
+      <div class="admin-form-actions">
+        <button type="submit" class="btn btn--primary">
+          {% if product %}Update Product{% else %}Add Product{% endif %}
+        </button>
+        <a href="{{ url_for('admin') }}" class="btn btn--ghost">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

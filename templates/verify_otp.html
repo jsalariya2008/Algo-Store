@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Verify OTP</title>
+
+<style>
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #0d0d0d;
+    color: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+/* Card */
+.container {
+    background: #111;
+    padding: 40px;
+    border-radius: 16px;
+    text-align: center;
+    width: 350px;
+    box-shadow: 0 0 30px rgba(255,255,255,0.05);
+}
+
+/* Title */
+h2 {
+    margin-bottom: 10px;
+}
+
+p {
+    font-size: 14px;
+    color: #aaa;
+}
+
+/* OTP boxes */
+.otp-inputs {
+    display: flex;
+    justify-content: space-between;
+    margin: 20px 0;
+}
+
+.otp-inputs input {
+    width: 45px;
+    height: 55px;
+    font-size: 22px;
+    text-align: center;
+    border: none;
+    border-radius: 10px;
+    background: #1a1a1a;
+    color: white;
+    outline: none;
+    transition: 0.2s;
+}
+
+.otp-inputs input:focus {
+    border: 1px solid #fff;
+}
+
+/* Button */
+button {
+    width: 100%;
+    padding: 12px;
+    background: #fff;
+    color: black;
+    border: none;
+    border-radius: 10px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+button:hover {
+    background: #ddd;
+}
+
+/* Timer */
+.timer {
+    margin-top: 10px;
+    font-size: 13px;
+    color: #888;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+    <h2>Verify Your Email</h2>
+    <p>Enter the 6-digit OTP sent to your email</p>
+
+    <form method="POST" onsubmit="combineOTP()">
+        <div class="otp-inputs">
+            <input type="text" maxlength="1" oninput="moveNext(this,0)">
+            <input type="text" maxlength="1" oninput="moveNext(this,1)">
+            <input type="text" maxlength="1" oninput="moveNext(this,2)">
+            <input type="text" maxlength="1" oninput="moveNext(this,3)">
+            <input type="text" maxlength="1" oninput="moveNext(this,4)">
+            <input type="text" maxlength="1" oninput="moveNext(this,5)">
+        </div>
+
+        <!-- Hidden input -->
+        <input type="hidden" name="otp" id="otp">
+
+        <button type="submit">Verify</button>
+    </form>
+
+    <div class="timer" id="timer">Resend OTP in 30s</div>
+</div>
+
+<script>
+// Move to next input
+function moveNext(input, index) {
+    const inputs = document.querySelectorAll('.otp-inputs input');
+    if (input.value.length === 1 && index < 5) {
+        inputs[index + 1].focus();
+    }
+}
+
+// Combine OTP before submit
+function combineOTP() {
+    const inputs = document.querySelectorAll('.otp-inputs input');
+    let otp = '';
+    inputs.forEach(input => otp += input.value);
+    document.getElementById('otp').value = otp;
+}
+
+// Timer
+let time = 30;
+const timer = document.getElementById('timer');
+
+const countdown = setInterval(() => {
+    time--;
+    timer.innerText = `Resend OTP in ${time}s`;
+
+    if (time <= 0) {
+        clearInterval(countdown);
+        timer.innerText = "Resend OTP";
+        timer.style.cursor = "pointer";
+    }
+}, 1000);
+</script>
+
+</body>
+</html>

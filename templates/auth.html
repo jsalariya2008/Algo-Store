@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}{% if mode == 'login' %}Login{% else %}Sign Up{% endif %} - ALGO{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+  <div class="auth-visual">
+    <div class="auth-visual__content">
+      <p class="auth-visual__brand">ALGO</p>
+      <blockquote class="auth-visual__quote">
+        "Join the movement.<br>Wear your story."
+      </blockquote>
+    </div>
+  </div>
+
+  <div class="auth-form-side">
+    <div class="auth-form-container">
+      <div class="auth-tabs">
+        <a href="{{ url_for('login') }}" class="auth-tab {% if mode == 'login' %}active{% endif %}">Login</a>
+        <a href="{{ url_for('signup') }}" class="auth-tab {% if mode == 'signup' %}active{% endif %}">Sign Up</a>
+      </div>
+
+      {% if mode == 'login' %}
+      <form method="POST" action="{{ url_for('login') }}" class="auth-form">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-input" type="email" name="email" required placeholder="you@email.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input class="form-input" type="password" name="password" required placeholder="••••••••">
+        </div>
+        <button type="submit" class="btn btn--primary btn--full">Enter</button>
+        <p class="auth-switch">Don't have an account? <a href="{{ url_for('signup') }}">Sign up</a></p>
+      </form>
+
+      {% else %}
+      <form method="POST" action="{{ url_for('signup') }}" class="auth-form">
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input class="form-input" type="text" name="name" required placeholder="Your name">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-input" type="email" name="email" required placeholder="you@email.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input class="form-input" type="password" name="password" required placeholder="Create a password" minlength="6">
+        </div>
+        <button type="submit" class="btn btn--primary btn--full">Create Account</button>
+        <p class="auth-switch">Already have an account? <a href="{{ url_for('login') }}">Log in</a></p>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

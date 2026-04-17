@@ -1,0 +1,435 @@
+{% extends 'base.html' %}
+{% block title %}Checkout — ALGO{% endblock %}
+
+{% block content %}
+<div style="padding:calc(70px + 50px) clamp(20px,5vw,60px) 80px; max-width:1200px; margin:0 auto;">
+
+  <h1 style="font-family:'Bebas Neue',sans-serif;font-size:3rem;letter-spacing:.06em;margin-bottom:4px;">Checkout</h1>
+  <p style="font-family:'DM Mono',monospace;font-size:.62rem;letter-spacing:.14em;color:rgba(0,0,0,.35);margin-bottom:36px;">
+    ORDER #ALGO-{{ order_id }}
+  </p>
+
+  <div style="display:grid;grid-template-columns:1fr 360px;gap:32px;align-items:start;">
+
+    <!-- LEFT COLUMN -->
+    <div>
+
+      <!-- Delivery Address -->
+<div style="margin-bottom:32px;">
+  <p style="font-family:'DM Mono',monospace;font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;color:rgba(0,0,0,.35);margin-bottom:12px;">
+    Delivery Address <span style="color:#c0392b;">*</span>
+  </p>
+
+  <div class="field-wrap">
+    <label class="co-label">Full Name <span class="req">*</span></label>
+    <input class="co-input" id="field-name"  type="text"  placeholder="Jisha Sharma">
+  </div>
+  <div class="field-wrap">
+    <label class="co-label">Phone Number <span class="req">*</span></label>
+    <input class="co-input" id="field-phone" type="tel"   placeholder="9876543210" maxlength="10">
+  </div>
+  <div class="field-wrap">
+    <label class="co-label">Address Line 1 <span class="req">*</span></label>
+    <input class="co-input" id="field-addr1" type="text"  placeholder="House/Flat No., Street">
+  </div>
+  <div class="field-wrap">
+    <label class="co-label">Address Line 2</label>
+    <input class="co-input" id="field-addr2" type="text"  placeholder="Area, Landmark (optional)">
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+    <div class="field-wrap">
+      <label class="co-label">City <span class="req">*</span></label>
+      <input class="co-input" id="field-city"  type="text" placeholder="Raipur">
+    </div>
+    <div class="field-wrap">
+      <label class="co-label">PIN Code <span class="req">*</span></label>
+      <input class="co-input" id="field-pin"   type="text" placeholder="492001" maxlength="6">
+    </div>
+  </div>
+  <div class="field-wrap">
+    <label class="co-label">State <span class="req">*</span></label>
+    <input class="co-input" id="field-state" type="text"  placeholder="Chhattisgarh">
+  </div>
+</div>
+
+      <!-- Payment Method -->
+      <div>
+        <p style="font-family:'DM Mono',monospace;font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;color:rgba(0,0,0,.35);margin-bottom:12px;">
+          Payment Method
+        </p>
+
+        <!-- UPI -->
+        <div class="pay-opt selected" id="opt-upi" onclick="selectMethod('upi')">
+          <div class="pay-radio"><div class="pay-dot"></div></div>
+          <div style="flex:1;">
+            <div class="pay-name">UPI</div>
+            <div class="pay-desc">GPay · PhonePe · Paytm · BHIM</div>
+          </div>
+          <span class="pay-badge">Instant</span>
+        </div>
+        <div class="pay-body open" id="body-upi">
+          <div style="display:flex;gap:8px;margin-bottom:10px;">
+            <input class="co-input" id="upiId" placeholder="yourname@upi" type="text" style="margin:0;flex:1;">
+            <button onclick="verifyUPI()" style="padding:0 16px;background:#1a1714;color:#f0e6d3;font-family:'DM Mono',monospace;font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;border:none;cursor:pointer;white-space:nowrap;" id="upiVerifyBtn">
+              Verify
+            </button>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="app-btn" onclick="pickApp(this,'GPay')">GPay</button>
+            <button class="app-btn" onclick="pickApp(this,'PhonePe')">PhonePe</button>
+            <button class="app-btn" onclick="pickApp(this,'Paytm')">Paytm</button>
+            <button class="app-btn" onclick="pickApp(this,'BHIM')">BHIM</button>
+          </div>
+        </div>
+
+        <!-- Card -->
+        <div class="pay-opt" id="opt-card" onclick="selectMethod('card')">
+          <div class="pay-radio"><div class="pay-dot"></div></div>
+          <div style="flex:1;">
+            <div class="pay-name">Credit / Debit Card</div>
+            <div class="pay-desc">Visa · Mastercard · RuPay</div>
+          </div>
+        </div>
+        <div class="pay-body" id="body-card">
+          <input class="co-input" placeholder="Card number" type="text" style="letter-spacing:.1em;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <input class="co-input" placeholder="MM / YY" type="text">
+            <input class="co-input" placeholder="CVV" type="text">
+          </div>
+          <input class="co-input" placeholder="Name on card" type="text">
+        </div>
+
+        <!-- Net Banking -->
+         <select class="co-input" id="field-bank" name="bank" style="cursor:pointer;"></select>
+        <div class="pay-opt" id="opt-nb" onclick="selectMethod('nb')">
+          <div class="pay-radio"><div class="pay-dot"></div></div>
+          <div style="flex:1;">
+            <div class="pay-name">Net Banking</div>
+            <div class="pay-desc">SBI · HDFC · ICICI · Axis & 50+ banks</div>
+          </div>
+        </div>
+        <div class="pay-body" id="body-nb">
+          <select class="co-input" name="bank" style="cursor:pointer;">
+            <option value="">Select your bank</option>
+            <option value="sbi">State Bank of India</option>
+            <option value="hdfc">HDFC Bank</option>
+            <option value="icici">ICICI Bank</option>
+            <option value="axis">Axis Bank</option>
+            <option value="kotak">Kotak Mahindra Bank</option>
+            <option value="pnb">Punjab National Bank</option>
+            <option value="bob">Bank of Baroda</option>
+          </select>
+        </div>
+
+        <!-- COD -->
+        <div class="pay-opt" id="opt-cod" onclick="selectMethod('cod')">
+          <div class="pay-radio"><div class="pay-dot"></div></div>
+          <div style="flex:1;">
+            <div class="pay-name">Cash on Delivery</div>
+            <div class="pay-desc">Pay when your order arrives</div>
+          </div>
+        </div>
+        <div class="pay-body" id="body-cod">
+          <p style="font-size:.95rem;color:rgba(0,0,0,.5);line-height:1.7;margin:0 0 8px;">
+            Pay in cash when delivered. Our partner will collect payment at your door.
+          </p>
+          <span style="font-family:'DM Mono',monospace;font-size:.62rem;letter-spacing:.1em;background:#fffbeb;color:#92400e;padding:4px 10px;">
+            + ₹25 COD handling fee
+          </span>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- RIGHT: Summary -->
+    <div style="background:#1a1714;padding:28px;position:sticky;top:90px;">
+      <p style="font-family:'Bebas Neue',sans-serif;font-size:1.7rem;letter-spacing:.06em;color:#f0e6d3;margin:0 0 20px;">
+        Order Summary
+      </p>
+      {% for item in cart_items %}
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+        <span style="font-size:.88rem;color:rgba(200,180,154,.6);">{{ item.name }} × {{ item.qty }} ({{ item.size }})</span>
+        <span style="font-family:'DM Mono',monospace;font-size:.75rem;color:rgba(200,180,154,.6);">₹{{ "%.0f"|format(item.subtotal) }}</span>
+      </div>
+      {% endfor %}
+      <div style="height:1px;background:rgba(255,255,255,.07);margin:14px 0;"></div>
+      <div style="display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:.72rem;color:rgba(200,180,154,.45);margin-bottom:6px;">
+        <span>Subtotal</span><span>₹{{ "%.0f"|format(subtotal) }}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:.72rem;color:rgba(200,180,154,.45);margin-bottom:6px;">
+        <span>Shipping</span><span>{% if subtotal >= 999 %}Free{% else %}₹99{% endif %}</span>
+      </div>
+      <div id="codFeeRow" style="display:none;justify-content:space-between;font-family:'DM Mono',monospace;font-size:.72rem;color:rgba(200,180,154,.45);margin-bottom:6px;">
+        <span>COD fee</span><span>₹25</span>
+      </div>
+      <div style="height:1px;background:rgba(255,255,255,.07);margin:14px 0;"></div>
+      <div style="display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:.9rem;color:#f0e6d3;font-weight:500;">
+        <span>Total</span>
+        <span id="totalDisplay">₹{{ "%.0f"|format(grand_total) }}</span>
+      </div>
+
+      <button id="placeOrderBtn" onclick="placeOrder()"
+        style="width:100%;margin-top:20px;padding:15px;background:#c0392b;color:#fdfaf6;
+               font-family:'DM Mono',monospace;font-size:.72rem;letter-spacing:.18em;
+               text-transform:uppercase;border:none;cursor:pointer;transition:background .25s;">
+        Place Order — UPI
+      </button>
+      <p id="methodNote" style="font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.1em;color:rgba(200,180,154,.3);text-align:center;margin-top:10px;text-transform:uppercase;">
+        Pay via UPI after placing order
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<!-- Hidden form for actual submission -->
+<form id="checkoutForm" method="POST" action="{{ url_for('place_order') }}" style="display:none;">
+  <input type="hidden" name="payment_method" id="paymentMethodInput" value="upi">
+  <input type="hidden" name="rz_order_id"    value="{{ rz_order_id }}">
+  <input type="hidden" name="order_id"       value="{{ order_id }}">
+  <input type="hidden" name="amount"         value="{{ amount }}">
+  <!-- Address fields copied here by JS before submit -->
+  <input type="hidden" name="name"  id="input-name">
+  <input type="hidden" name="phone" id="input-phone">
+  <input type="hidden" name="addr1" id="input-addr1">
+  <input type="hidden" name="addr2" id="input-addr2">
+  <input type="hidden" name="city"  id="input-city">
+  <input type="hidden" name="pin"   id="input-pin">
+  <input type="hidden" name="state" id="input-state">
+</form>
+
+<!-- Razorpay SDK (needed for UPI, Card, Netbanking) -->
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+<style>
+  .field-wrap  { margin-bottom: 8px; }
+.co-label    { display:block; font-family:'DM Mono',monospace; font-size:.6rem;
+               letter-spacing:.12em; text-transform:uppercase;
+               color:rgba(0,0,0,.4); margin-bottom:4px; }
+.req         { color:#c0392b; }
+.input-error { border-color:#c0392b !important; background:#fff8f7 !important; }
+
+.co-input {
+  width:100%; padding:11px 14px; border:1px solid rgba(0,0,0,.1);
+  background:#fdfaf6; font-family:'Crimson Pro',serif; font-size:.95rem;
+  margin-bottom:8px; outline:none; box-sizing:border-box;
+}
+.co-input:focus { border-color:#c0392b; }
+.pay-opt {
+  display:flex; align-items:center; gap:14px; padding:14px 16px;
+  border:1px solid rgba(0,0,0,.1); background:#fdfaf6; cursor:pointer;
+  margin-bottom:6px; transition:border-color .2s;
+}
+.pay-opt:hover { border-color:rgba(0,0,0,.25); }
+.pay-opt.selected { border-color:#c0392b; background:#fff8f7; }
+.pay-radio {
+  width:18px; height:18px; border-radius:50%;
+  border:1.5px solid rgba(0,0,0,.2); display:flex;
+  align-items:center; justify-content:center; flex-shrink:0;
+}
+.pay-opt.selected .pay-radio { border-color:#c0392b; }
+.pay-dot { width:9px; height:9px; border-radius:50%; background:#c0392b; opacity:0; transition:opacity .15s; }
+.pay-opt.selected .pay-dot { opacity:1; }
+.pay-name { font-family:'DM Mono',monospace; font-size:.78rem; font-weight:500; color:#1a1714; }
+.pay-desc { font-size:.85rem; color:rgba(0,0,0,.42); margin-top:2px; }
+.pay-badge { font-family:'DM Mono',monospace; font-size:.58rem; letter-spacing:.1em; text-transform:uppercase; padding:3px 8px; background:#f0fdf4; color:#166534; }
+.pay-body { overflow:hidden; max-height:0; transition:max-height .35s ease, padding .3s; padding:0 16px; border:1px solid rgba(0,0,0,.07); border-top:none; background:#fff; margin-bottom:6px; margin-top:-6px; }
+.pay-body.open { max-height:200px; padding:16px; }
+.app-btn { padding:6px 12px; border:1px solid rgba(0,0,0,.1); font-family:'DM Mono',monospace; font-size:.62rem; letter-spacing:.08em; cursor:pointer; background:#fdfaf6; transition:all .2s; }
+.app-btn:hover, .app-btn.active { background:#1a1714; color:#f0e6d3; border-color:#1a1714; }
+</style>
+
+<script>
+const RZ_KEY   = '{{ rz_key }}';
+const RZ_ORDER = '{{ rz_order_id }}';
+const AMOUNT   = {{ amount }};
+const ORDER_ID = {{ order_id }};
+const BASE     = {{ subtotal + (0 if subtotal >= 999 else 99) }};
+
+let currentMethod = 'upi';
+const methods = ['upi','card','nb','cod'];
+const btnLabels = { upi:'UPI', card:'Card', nb:'Net Banking', cod:'Cash on Delivery' };
+const btnNotes  = {
+  upi:  'UPI payment processed via Razorpay',
+  card: 'Card charged securely via Razorpay',
+  nb:   'Redirected to your bank portal',
+  cod:  'Pay cash when your order arrives'
+};
+
+function selectMethod(m) {
+  currentMethod = m;
+  methods.forEach(id => {
+    document.getElementById('opt-'+id).classList.toggle('selected', id===m);
+    document.getElementById('body-'+id).classList.toggle('open', id===m);
+  });
+  document.getElementById('placeOrderBtn').textContent = 'Place Order — ' + btnLabels[m];
+  document.getElementById('methodNote').textContent    = btnNotes[m];
+  document.getElementById('paymentMethodInput').value  = m;
+  // COD fee toggle
+  const codRow = document.getElementById('codFeeRow');
+  codRow.style.display = m==='cod' ? 'flex' : 'none';
+  document.getElementById('totalDisplay').textContent =
+    '₹' + (m==='cod' ? BASE+25 : BASE).toLocaleString('en-IN');
+}
+
+function pickApp(btn, app) {
+  document.querySelectorAll('.app-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('upiId').placeholder = app + ' UPI ID';
+}
+
+function verifyUPI() {
+  const val = document.getElementById('upiId').value.trim();
+  const btn = document.getElementById('upiVerifyBtn');
+  if (!val) { document.getElementById('upiId').focus(); return; }
+  btn.textContent = 'Checking…';
+  // In production: call your Flask endpoint to verify via Razorpay API
+  setTimeout(() => {
+    const ok = val.includes('@');
+    btn.textContent = ok ? '✓ Valid' : 'Invalid ID';
+    if (ok) btn.style.background = '#166534';
+    setTimeout(() => { btn.textContent='Verify'; btn.style.background='#1a1714'; }, 2200);
+  }, 700);
+}
+
+function placeOrder() {
+    // ── Validate all address fields ──
+    const fields = [
+        { id: 'field-name',   label: 'Full name' },
+        { id: 'field-phone',  label: 'Phone number' },
+        { id: 'field-addr1',  label: 'Address line 1' },
+        { id: 'field-city',   label: 'City' },
+        { id: 'field-pin',    label: 'PIN code' },
+        { id: 'field-state',  label: 'State' },
+    ];
+
+    let firstError = null;
+
+    fields.forEach(f => {
+        const el = document.getElementById(f.id);
+        if (!el.value.trim()) {
+            el.classList.add('input-error');
+            if (!firstError) firstError = el;
+        } else {
+            el.classList.remove('input-error');
+        }
+    });
+
+    // Phone validation — must be 10 digits
+    const phone = document.getElementById('field-phone');
+    if (phone.value.trim() && !/^[6-9]\d{9}$/.test(phone.value.trim())) {
+        phone.classList.add('input-error');
+        showFieldError(phone, 'Enter a valid 10-digit Indian mobile number');
+        if (!firstError) firstError = phone;
+    }
+
+    // PIN validation — must be 6 digits
+    const pin = document.getElementById('field-pin');
+    if (pin.value.trim() && !/^\d{6}$/.test(pin.value.trim())) {
+        pin.classList.add('input-error');
+        showFieldError(pin, 'PIN code must be 6 digits');
+        if (!firstError) firstError = pin;
+    }
+
+    // UPI validation — if UPI selected, ID must be filled
+    if (currentMethod === 'upi') {
+        const upiId = document.getElementById('upiId');
+        if (!upiId.value.trim() || !upiId.value.includes('@')) {
+            upiId.classList.add('input-error');
+            showFieldError(upiId, 'Enter a valid UPI ID (e.g. name@upi)');
+            if (!firstError) firstError = upiId;
+        }
+    }
+
+    // Net banking — bank must be selected
+    if (currentMethod === 'nb') {
+        const bank = document.getElementById('field-bank');
+        if (!bank.value) {
+            bank.classList.add('input-error');
+            if (!firstError) firstError = bank;
+        }
+    }
+
+    if (firstError) {
+        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        firstError.focus();
+        return; // stop here — don't proceed
+    }
+
+    // ── All valid — copy values to hidden form ──
+    document.getElementById('input-name').value  = document.getElementById('field-name').value.trim();
+    document.getElementById('input-phone').value = document.getElementById('field-phone').value.trim();
+    document.getElementById('input-addr1').value = document.getElementById('field-addr1').value.trim();
+    document.getElementById('input-addr2').value = document.getElementById('field-addr2').value.trim();
+    document.getElementById('input-city').value  = document.getElementById('field-city').value.trim();
+    document.getElementById('input-pin').value   = document.getElementById('field-pin').value.trim();
+    document.getElementById('input-state').value = document.getElementById('field-state').value.trim();
+
+    const btn = document.getElementById('placeOrderBtn');
+
+    if (currentMethod === 'cod') {
+        btn.textContent = 'Placing Order...';
+        btn.disabled = true;
+        document.getElementById('checkoutForm').submit();
+        return;
+    }
+
+    btn.textContent = 'Opening payment...';
+    const options = {
+        key:         RZ_KEY,
+        amount:      AMOUNT,
+        currency:    'INR',
+        name:        'ALGO',
+        description: 'Order #' + ORDER_ID,
+        order_id:    RZ_ORDER,
+        theme:       { color: '#c0392b' },
+        handler: function(response) {
+            fetch('/payment/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    razorpay_order_id:   response.razorpay_order_id,
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_signature:  response.razorpay_signature,
+                    order_id:            ORDER_ID
+                })
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (d.success) window.location.href = '/order/success/' + d.order_id;
+                else alert('Payment verification failed. Contact support with order #' + ORDER_ID);
+            });
+        },
+        modal: {
+            ondismiss: function() {
+                btn.textContent = 'Place Order — ' + btnLabels[currentMethod];
+                btn.disabled = false;
+            }
+        }
+    };
+    new Razorpay(options).open();
+}
+
+function showFieldError(el, msg) {
+    // Remove any existing error message for this field
+    const existing = el.parentElement.querySelector('.field-error-msg');
+    if (existing) existing.remove();
+    const err = document.createElement('p');
+    err.className = 'field-error-msg';
+    err.textContent = msg;
+    err.style.cssText = 'color:#c0392b;font-family:"DM Mono",monospace;font-size:.6rem;letter-spacing:.08em;margin:2px 0 0;';
+    el.parentElement.insertBefore(err, el.nextSibling);
+}
+
+// Clear error styling as user types
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.co-input').forEach(input => {
+        input.addEventListener('input', function() {
+            this.classList.remove('input-error');
+            const errMsg = this.parentElement.querySelector('.field-error-msg');
+            if (errMsg) errMsg.remove();
+        });
+    });
+});
+</script>
+{% endblock %}

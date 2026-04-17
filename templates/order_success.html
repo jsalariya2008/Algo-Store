@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Order Confirmed — ALGO{% endblock %}
+
+{% block content %}
+<div style="min-height:80vh;display:flex;align-items:center;justify-content:center;
+            padding:100px 20px;text-align:center;flex-direction:column;gap:20px;">
+  <div style="font-size:3rem;">✓</div>
+  <h1 style="font-family:'Bebas Neue',sans-serif;font-size:4rem;letter-spacing:.06em;">
+    Order Confirmed
+  </h1>
+  <p style="font-family:'DM Mono',monospace;font-size:.75rem;letter-spacing:.12em;
+            color:rgba(0,0,0,.4);text-transform:uppercase;">
+    Order #{{ order.id }} · ₹{{ "%.2f"|format(order.total_amount) }}
+  </p>
+  <p style="font-size:1rem;color:rgba(0,0,0,.5);max-width:400px;line-height:1.8;">
+    Your piece of the story is on its way. You'll receive a confirmation email shortly.
+  </p>
+  <a href="{{ url_for('collection') }}"
+     style="margin-top:20px;font-family:'DM Mono',monospace;font-size:.72rem;
+            letter-spacing:.16em;text-transform:uppercase;padding:14px 32px;
+            background:#c0392b;color:#fdfaf6;text-decoration:none;">
+    Continue Shopping
+  </a>
+</div>
+{% endblock %}
