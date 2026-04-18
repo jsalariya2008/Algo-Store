@@ -10,6 +10,8 @@
     <a href="{{ url_for('admin') }}" class="btn btn--ghost">← Back</a>
   </div>
 
+  
+
   <div class="admin-form-wrap">
     <form method="POST" enctype="multipart/form-data" class="admin-form">
       <div class="form-row">
@@ -51,11 +53,13 @@
         <label class="form-label">Product Image</label>
         <input class="form-input" type="file" name="image" accept="image/*">
         {% if product and product.image_url %}
-          <div class="current-image">
-            <img src="{{ product.image_url }}" alt="Current">
-            <span>Current image</span>
-          </div>
-        {% endif %}
+<input type="hidden" name="existing_image" value="{{ product.image_url }}">
+<div class="current-image">
+  <img src="{{ product.image_url }}" alt="Current image"
+       style="width:80px;height:100px;object-fit:cover;">
+  <span>Current image — upload new to replace</span>
+</div>
+{% endif %}
       </div>
 
       <div class="form-row form-row--checks">
