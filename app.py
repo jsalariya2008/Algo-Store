@@ -19,6 +19,17 @@ load_dotenv()
 
 app = Flask(__name__)
 
+import cloudinary
+import cloudinary.uploader
+
+# ── Cloudinary ─────────────────────────────────────────────────────
+cloudinary.config(
+    cloud_name = os.getenv('CLOUDINARY_CLOUD_NAME'),
+    api_key    = os.getenv('CLOUDINARY_API_KEY'),
+    api_secret = os.getenv('CLOUDINARY_API_SECRET'),
+    secure     = True
+)
+
 # ── Secret key ─────────────────────────────────────────────────────
 app.secret_key = os.getenv('SECRET_KEY')
 
@@ -89,47 +100,87 @@ def send_otp(email, otp):
     except Exception as e:
         print(f"[OTP EMAIL ERROR] {e}")
 
-def send_order_notification(order_id, total, payment_method, customer_name, customer_email):
+def send_order_notification(order_id, total, payment_method, customer_name, customer_email, address='', phone=''):
     try:
+        # ── Admin alert with full details ──
         admin_msg = Message(
             subject=f'New ALGO Order #{order_id} — Rs.{total}',
             sender=ADMIN_EMAIL,
             recipients=[ADMIN_EMAIL]
         )
-        admin_msg.body = f"""
-New order received on ALGO!
+        admin_msg.body = f'''
+============================================
+  NEW ORDER RECEIVED — ALGO
+============================================
 
-Order ID    : #{order_id}
-Customer    : {customer_name} ({customer_email})
-Amount      : Rs.{total}
-Payment     : {payment_method.upper()}
-Time        : {datetime.now().strftime('%d %b %Y, %I:%M %p')}
-        """
+Order ID      : #{order_id}
+Time          : {datetime.now().strftime('%d %b %Y, %I:%M %p')}
+
+--------------------------------------------
+  CUSTOMER DETAILS
+--------------------------------------------
+Name          : {customer_name}
+Email         : {customer_email}
+Phone         : {phone if phone else 'Not provided'}
+
+--------------------------------------------
+  DELIVERY ADDRESS
+--------------------------------------------
+{address if address else 'Not provided'}
+
+--------------------------------------------
+  ORDER DETAILS
+--------------------------------------------
+Amount        : Rs.{total}
+Payment       : {payment_method.upper()}
+
+--------------------------------------------
+View in admin : https://algo-store.onrender.com/admin/orders
+============================================
+        '''
         mail.send(admin_msg)
+        print(f"[MAIL] Admin notified for order #{order_id}")
 
+        # ── Customer confirmation ──
         customer_msg = Message(
-            subject=f'Your ALGO Order #{order_id} is confirmed!',
+            subject=f'Your ALGO Order #{order_id} is Confirmed!',
             sender=ADMIN_EMAIL,
             recipients=[customer_email]
         )
-        customer_msg.body = f"""
+        customer_msg.body = f'''
 Hey {customer_name},
 
 Your order has been placed successfully!
 
-Order ID    : #{order_id}
-Amount      : Rs.{total}
-Payment     : {payment_method.upper()}
+============================================
+  ORDER SUMMARY
+============================================
+Order ID      : #{order_id}
+Amount        : Rs.{total}
+Payment       : {payment_method.upper()}
 
-We'll notify you once it ships.
+--------------------------------------------
+  DELIVERY ADDRESS
+--------------------------------------------
+{address if address else 'Not provided'}
+Phone         : {phone if phone else 'Not provided'}
 
+--------------------------------------------
+
+We'll notify you once your order ships.
+
+Thank you for shopping with ALGO.
 Wear your story.
+
 — Team ALGO
-        """
+algowear.co@gmail.com
+============================================
+        '''
         mail.send(customer_msg)
+        print(f"[MAIL] Confirmation sent to {customer_email}")
 
     except Exception as e:
-        print(f"[EMAIL ERROR] Order notification failed: {e}")
+        print(f"[MAIL ERROR] Order #{order_id} notification failed: {str(e)}")
 
 # ── HOMEPAGE ───────────────────────────────────────────────────────
 @app.route('/')
@@ -344,14 +395,21 @@ def admin_add_product():
         stock       = int(request.form['stock'])
         is_upcoming = 1 if request.form.get('is_upcoming') else 0
         image_url   = ''
+
         if 'image' in request.files:
             file = request.files['image']
             if file and allowed_file(file.filename):
-                filename  = secure_filename(file.filename)
-                save_path = app.config['UPLOAD_FOLDER']
-                os.makedirs(save_path, exist_ok=True)
-                file.save(os.path.join(save_path, filename))
-                image_url = f'/uploads/products/{filename}'
+                # Upload directly to Cloudinary
+                result = cloudinary.uploader.upload(
+                    file,
+                    folder='algo_products',
+                    transformation=[
+                        {'width': 800, 'height': 1000,
+                         'crop': 'fill', 'quality': 'auto'}
+                    ]
+                )
+                image_url = result['secure_url']  # permanent HTTPS URL
+
         cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
         cur.execute("""
             INSERT INTO products (name, price, description, category, stock, image_url, is_upcoming, is_active)
@@ -375,14 +433,31 @@ def admin_edit_product(pid):
         stock       = int(request.form['stock'])
         is_upcoming = 1 if request.form.get('is_upcoming') else 0
         is_active   = 1 if request.form.get('is_active') else 0
+
+        # Check if new image uploaded
+        image_url = request.form.get('existing_image', '')
+        if 'image' in request.files:
+            file = request.files['image']
+            if file and file.filename and allowed_file(file.filename):
+                result = cloudinary.uploader.upload(
+                    file,
+                    folder='algo_products',
+                    transformation=[
+                        {'width': 800, 'height': 1000,
+                         'crop': 'fill', 'quality': 'auto'}
+                    ]
+                )
+                image_url = result['secure_url']
+
         cur.execute("""
             UPDATE products SET name=%s, price=%s, description=%s, category=%s,
-            stock=%s, is_upcoming=%s, is_active=%s WHERE id=%s
-        """, (name, price, description, category, stock, is_upcoming, is_active, pid))
+            stock=%s, is_upcoming=%s, is_active=%s, image_url=%s WHERE id=%s
+        """, (name, price, description, category, stock, is_upcoming, is_active, image_url, pid))
         mysql.connection.commit()
         cur.close()
         flash('Product updated!', 'success')
         return redirect(url_for('admin'))
+
     cur.execute("SELECT * FROM products WHERE id=%s", (pid,))
     product = cur.fetchone()
     cur.close()
@@ -462,6 +537,17 @@ def checkout():
     order_id = cur.lastrowid
     cur.close()
 
+# Store address in session temporarily for online payments
+session['pending_address'] = {
+    'name':  request.form.get('name', ''),
+    'phone': request.form.get('phone', ''),
+    'addr1': request.form.get('addr1', ''),
+    'addr2': request.form.get('addr2', ''),
+    'city':  request.form.get('city', ''),
+    'pin':   request.form.get('pin', ''),
+    'state': request.form.get('state', ''),
+}
+
     return render_template('checkout.html',
         rz_key      = os.getenv('RAZORPAY_KEY_ID'),
         rz_order_id = rz_order['id'],
@@ -505,22 +591,27 @@ def place_order():
     if payment_method != 'cod':
         return redirect(url_for('cart'))
 
+    addr2 = request.form.get('addr2', '').strip()
+
+    # Full formatted address
     delivery_address = (
-        f"{required['name']}, {required['addr1']}, "
-        f"{request.form.get('addr2','').strip()}, "
-        f"{required['city']}, {required['state']} - {required['pin']} "
-        f"| Ph: {required['phone']}"
+        f"{required['addr1']}"
+        f"{', ' + addr2 if addr2 else ''}, "
+        f"{required['city']}, "
+        f"{required['state']} - {required['pin']}"
     )
 
     cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
     cur.execute("""
-        UPDATE orders SET status='confirmed', payment_method='cod', address=%s
+        UPDATE orders
+        SET status='confirmed', payment_method='cod',
+            address=%s, phone=%s
         WHERE id=%s AND user_id=%s
-    """, (delivery_address, order_id, session['user_id']))
+    """, (delivery_address, required['phone'], order_id, session['user_id']))
     mysql.connection.commit()
 
     cur.execute("SELECT email FROM users WHERE id=%s", (session['user_id'],))
-    user = cur.fetchone()
+    user  = cur.fetchone()
     cur.execute("SELECT total_amount FROM orders WHERE id=%s", (order_id,))
     order = cur.fetchone()
     cur.close()
@@ -529,8 +620,10 @@ def place_order():
         order_id       = order_id,
         total          = order['total_amount'],
         payment_method = 'cod',
-        customer_name  = session.get('username', 'Customer'),
-        customer_email = user['email']
+        customer_name  = required['name'],
+        customer_email = user['email'],
+        address        = delivery_address,
+        phone          = required['phone']
     )
 
     session.pop('cart', None)
