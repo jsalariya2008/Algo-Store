@@ -49,7 +49,7 @@
   </nav>
 
   <!-- Mobile menu -->
-  <<div class="mobile-menu" id="mobileMenu">
+  <div class="mobile-menu" id="mobileMenu">
   <a href="{{ url_for('collection') }}">Collection</a>
   <a href="{{ url_for('lookbook') }}">Lookbook</a>
   {% if session.get('user_id') %}
@@ -64,6 +64,11 @@
   <a href="{{ url_for('cart') }}">
     Bag ({{ cart_count }})
   </a>
+  {% if session.get('is_admin') %}
+  <a href="{{ url_for('admin') }}">Admin</a>
+  <a href="{{ url_for('admin_orders') }}">Orders</a>
+  <a href="{{ url_for('admin_lookbook') }}">Lookbook</a>
+{% endif %}
 </div>
 
   <!-- Flash messages -->

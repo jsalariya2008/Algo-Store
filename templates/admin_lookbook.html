@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% block title %}Lookbook Manager — ALGO Admin{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+
+  <div class="admin-header">
+    <div>
+      <h1 class="admin-title">Lookbook Manager</h1>
+      <p class="admin-sub">{{ images|length }} images uploaded</p>
+    </div>
+    <a href="{{ url_for('admin') }}" class="btn btn--ghost">← Back to Admin</a>
+  </div>
+
+  <!-- Upload form -->
+  <div style="background:var(--white);padding:28px;margin-bottom:32px;">
+    <p style="font-family:'DM Mono',monospace;font-size:.65rem;letter-spacing:.16em;
+              text-transform:uppercase;color:rgba(0,0,0,.35);margin-bottom:18px;">
+      Add New Image
+    </p>
+    <form method="POST" action="{{ url_for('admin_lookbook_add') }}"
+          enctype="multipart/form-data">
+      <div class="form-row" style="margin-bottom:14px;">
+        <div class="form-group">
+          <label class="form-label">Image Title / Label</label>
+          <input class="form-input" type="text" name="title"
+                 placeholder="e.g. Street Series">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Chapter</label>
+          <select class="form-input" name="chapter">
+            <option value="1">Chapter 1 — Gali Culture</option>
+            <option value="2">Chapter 2 — Dilli Nights</option>
+            <option value="3">Chapter 3 — Mitti & Rang</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row" style="margin-bottom:14px;">
+        <div class="form-group">
+          <label class="form-label">Image Size in Grid</label>
+          <select class="form-input" name="position">
+            <option value="normal">Normal (1×1)</option>
+            <option value="tall">Tall (1×2 — double height)</option>
+            <option value="wide">Wide (2×1 — double width)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Upload Image *</label>
+          <input class="form-input" type="file" name="image"
+                 accept="image/*" required>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn--primary">Upload to Lookbook</button>
+    </form>
+  </div>
+
+  <!-- Existing images -->
+  {% if images %}
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;">
+    {% for img in images %}
+    <div style="background:var(--white);border:1px solid rgba(0,0,0,.07);overflow:hidden;">
+      <img src="{{ img.image_url }}" alt="{{ img.title }}"
+           style="width:100%;aspect-ratio:3/4;object-fit:cover;display:block;">
+      <div style="padding:12px;">
+        <p style="font-family:'DM Mono',monospace;font-size:.65rem;
+                  letter-spacing:.08em;color:var(--off-black);margin-bottom:4px;">
+          {{ img.title or 'No title' }}
+        </p>
+        <p style="font-family:'DM Mono',monospace;font-size:.58rem;
+                  color:rgba(0,0,0,.35);margin-bottom:10px;">
+          Chapter {{ img.chapter }} · {{ img.position }}
+        </p>
+        <button onclick="deleteLookbook({{ img.id }})"
+                style="width:100%;font-family:'DM Mono',monospace;font-size:.6rem;
+                       letter-spacing:.1em;text-transform:uppercase;padding:7px;
+                       border:1px solid rgba(192,57,43,.3);color:var(--red);
+                       background:none;cursor:pointer;"
+                onmouseover="this.style.background='var(--red)';this.style.color='white'"
+                onmouseout="this.style.background='none';this.style.color='var(--red)'">
+          Remove
+        </button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:rgba(0,0,0,.3);
+              font-family:'DM Mono',monospace;font-size:.75rem;letter-spacing:.1em;">
+    No lookbook images yet. Upload your first one above.
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function deleteLookbook(id) {
+  if (!confirm('Remove this image from lookbook?')) return;
+  fetch('/admin/lookbook/delete/' + id, { method: 'POST' })
+    .then(r => r.json())
+    .then(() => location.reload());
+}
+</script>
+{% endblock %}
