@@ -1765,3 +1765,206 @@ body {
   align-items: center;
   justify-content: center;
 }
+
+/* ================================================================
+   ALGO — Admin Mobile Fixes
+================================================================ */
+
+@media (max-width: 768px) {
+
+  /* ── Admin page layout ─────────────────────────────────────── */
+  .admin-page {
+    padding: calc(60px + 16px) 12px 60px;
+  }
+
+  .admin-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+
+  .admin-title {
+    font-size: 1.8rem;
+  }
+
+  .admin-sub {
+    font-size: 0.6rem;
+  }
+
+  /* ── Admin table — horizontal scroll ───────────────────────── */
+  .admin-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid rgba(0,0,0,0.06);
+    border-radius: 2px;
+    margin: 0 -12px;
+    padding: 0 12px;
+  }
+
+  .admin-table {
+    min-width: 640px;
+    font-size: 0.78rem;
+  }
+
+  .admin-table th {
+    font-size: 0.58rem;
+    padding: 10px 10px;
+    white-space: nowrap;
+  }
+
+  .admin-table td {
+    padding: 10px 10px;
+    white-space: nowrap;
+    font-size: 0.78rem;
+  }
+
+  .admin-thumb {
+    width: 32px;
+    height: 42px;
+  }
+
+  .admin-btn {
+    padding: 5px 8px;
+    font-size: 0.55rem;
+  }
+
+  .status-badge {
+    font-size: 0.52rem;
+    padding: 2px 6px;
+  }
+
+  /* ── Admin product form ─────────────────────────────────────── */
+  .admin-form-wrap {
+    padding: 20px 16px;
+  }
+
+  .admin-form {
+    gap: 16px;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr !important;
+    gap: 16px;
+  }
+
+  .form-check span {
+    font-size: 0.65rem;
+  }
+
+  .admin-form-actions {
+    flex-direction: column;
+  }
+
+  .admin-form-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* ── Admin orders page ──────────────────────────────────────── */
+  .admin-orders-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -12px;
+  }
+}
+
+@media (max-width: 480px) {
+
+  .admin-title {
+    font-size: 1.5rem;
+  }
+
+  /* Stack action buttons vertically */
+  .admin-actions {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .admin-btn {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* ── Admin card view (mobile only) ─────────────────────────────── */
+.desktop-only { display: block; }
+.mobile-only  { display: none; }
+
+@media (max-width: 768px) {
+  .desktop-only { display: none; }
+  .mobile-only  { display: block; }
+}
+
+.admin-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-card {
+  background: var(--white);
+  border: 1px solid rgba(0,0,0,0.07);
+  padding: 14px;
+}
+
+.admin-card__top {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+  align-items: flex-start;
+}
+
+.admin-card__img {
+  width: 52px;
+  height: 68px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--beige);
+}
+
+.admin-card__img-placeholder {
+  width: 52px;
+  height: 68px;
+  background: var(--beige);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  color: rgba(0,0,0,0.2);
+  flex-shrink: 0;
+}
+
+.admin-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-card__name {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.05em;
+  color: var(--off-black);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-card__meta {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  color: rgba(0,0,0,0.4);
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.admin-card__actions {
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid rgba(0,0,0,0.06);
+  padding-top: 12px;
+}

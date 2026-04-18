@@ -49,16 +49,22 @@
   </nav>
 
   <!-- Mobile menu -->
-  <div class="mobile-menu" id="mobileMenu">
-    <a href="{{ url_for('collection') }}">Collection</a>
-    <a href="{{ url_for('lookbook') }}">Lookbook</a>
-    <a href="{{ url_for('index') }}#drops">Drops</a>
-    {% if session.get('user_id') %}
-      <a href="{{ url_for('logout') }}">Logout</a>
-    {% else %}
-      <a href="{{ url_for('login') }}">Login</a>
+  <<div class="mobile-menu" id="mobileMenu">
+  <a href="{{ url_for('collection') }}">Collection</a>
+  <a href="{{ url_for('lookbook') }}">Lookbook</a>
+  {% if session.get('user_id') %}
+    {% if session.get('is_admin') %}
+      <a href="{{ url_for('admin') }}">Admin</a>
+      <a href="{{ url_for('admin_orders') }}">Orders</a>
     {% endif %}
-  </div>
+    <a href="{{ url_for('logout') }}">Logout</a>
+  {% else %}
+    <a href="{{ url_for('login') }}">Login</a>
+  {% endif %}
+  <a href="{{ url_for('cart') }}">
+    Bag ({{ cart_count }})
+  </a>
+</div>
 
   <!-- Flash messages -->
   {% with messages = get_flashed_messages(with_categories=True) %}
@@ -101,9 +107,9 @@
           <a href="#"></a>
           <a href="#">Shipping</a>
           <a href="#"></a>
-          <a href="#">Contact
+          <a href="#">Contact<br> 
             +91 9001913162 <br>
-            +91 7566696374
+                +91 7566696374
           </a>
         </div>
       </div>
