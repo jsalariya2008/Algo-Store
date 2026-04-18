@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
-from flask_mysqldb import MySQL
+import flask_mysqldb
 from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename, send_from_directory
@@ -30,13 +30,13 @@ app.config['MYSQL_HOST'] = os.getenv("MYSQL_HOST")
 app.config['MYSQL_USER'] = os.getenv("MYSQL_USER")
 app.config['MYSQL_PASSWORD'] = os.getenv("MYSQL_PASSWORD")
 app.config['MYSQL_DB'] = os.getenv("MYSQL_DB")
-app.config['MYSQL_PORT'] = int(os.getenv("MYSQL_PORT", 3306))
+app.config['MYSQL_PORT'] = int(os.getenv("MYSQL_PORT", 26131))
 app.config['MYSQL_CURSORCLASS'] = os.getenv("DictCursor")
 
 app.config['MYSQL_SSL']  = {'REQUIRED': None}
 app.config['MYSQL_SSL_DISABLED'] = True
 
-mysql = MySQL(app)
+mysql = flask_mysqldb.MySQL(app)
 
 # ── Mail ───────────────────────────────────────────────────────────
 app.config['MAIL_USERNAME'] = os.getenv("algowear.co@gmail.com")
