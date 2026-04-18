@@ -1,59 +1,58 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
-import flask_mysqldb
+from flask_mysqldb import MySQL
 from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename, send_from_directory
 from functools import wraps
 from datetime import datetime
+import MySQLdb.cursors
 import os
-import json
 import random
 import time
 import hmac
 import hashlib
 import razorpay
+import re
 
-# ── Load .env ──────────────────────────────────────────────────────
 from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.getenv("algo_streetwear_secret_2024")
+
+# ── Secret key ─────────────────────────────────────────────────────
+app.secret_key = os.getenv('SECRET_KEY')
+
 app.config['UPLOAD_FOLDER'] = 'uploads/products'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
-
-
 # ── MySQL ──────────────────────────────────────────────────────────
-app.config['MYSQL_HOST'] = os.getenv("MYSQL_HOST")
-app.config['MYSQL_USER'] = os.getenv("MYSQL_USER")
-app.config['MYSQL_PASSWORD'] = os.getenv("MYSQL_PASSWORD")
-app.config['MYSQL_DB'] = os.getenv("MYSQL_DB")
-app.config['MYSQL_PORT'] = int(os.getenv("MYSQL_PORT", 26131))
-app.config['MYSQL_CURSORCLASS'] = os.getenv("DictCursor")
-
-app.config['MYSQL_SSL']  = {'REQUIRED': None}
+app.config['MYSQL_HOST']         = os.getenv('MYSQL_HOST')
+app.config['MYSQL_USER']         = os.getenv('MYSQL_USER')
+app.config['MYSQL_PASSWORD']     = os.getenv('MYSQL_PASSWORD')
+app.config['MYSQL_DB']           = os.getenv('MYSQL_DB')
+app.config['MYSQL_PORT']         = int(os.getenv('MYSQL_PORT', 3306))
+app.config['MYSQL_CURSORCLASS']  = 'DictCursor'
+app.config['MYSQL_CHARSET']      = 'utf8mb4'
 app.config['MYSQL_SSL_DISABLED'] = True
 
-mysql = flask_mysqldb.MySQL(app)
+mysql = MySQL(app)
 
-# ── Mail ───────────────────────────────────────────────────────────
-app.config['MAIL_USERNAME'] = os.getenv("algowear.co@gmail.com")
-app.config['MAIL_PASSWORD'] = os.getenv("MAIL_PASSWORD")
+ADMIN_EMAIL = 'algowear.co@gmail.com'
+
 app.config['MAIL_SERVER']   = 'smtp.gmail.com'
 app.config['MAIL_PORT']     = 587
 app.config['MAIL_USE_TLS']  = True
-
+app.config['MAIL_USERNAME'] = ADMIN_EMAIL
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
 
 mail = Mail(app)
 
-ADMIN_EMAIL = 'algowear.co@gmail.com'  # email where YOU get order alerts
-
 # ── Razorpay ───────────────────────────────────────────────────────
-rz_client = razorpay.Client(
-    auth=(os.getenv('RAZORPAY_KEY_ID'), os.getenv('RAZORPAY_KEY_SECRET'))
-)
+def get_rz_client():
+    return razorpay.Client(
+        auth=(os.getenv('RAZORPAY_KEY_ID'), os.getenv('RAZORPAY_KEY_SECRET'))
+    )
 
 # ── Helpers ────────────────────────────────────────────────────────
 def allowed_file(filename):
@@ -79,17 +78,19 @@ def generate_otp():
     return str(random.randint(100000, 999999))
 
 def send_otp(email, otp):
-    msg = Message(
-        'Your ALGO OTP Code',
-        sender=ADMIN_EMAIL,
-        recipients=[email]
-    )
-    msg.body = f'Your OTP is: {otp}\n\nValid for 10 minutes.\n\n— Team ALGO'
-    mail.send(msg)
+    try:
+        msg = Message(
+            'Your ALGO OTP Code',
+            sender=ADMIN_EMAIL,
+            recipients=[email]
+        )
+        msg.body = f'Your OTP is: {otp}\n\nValid for 10 minutes.\n\n— Team ALGO'
+        mail.send(msg)
+    except Exception as e:
+        print(f"[OTP EMAIL ERROR] {e}")
 
 def send_order_notification(order_id, total, payment_method, customer_name, customer_email):
     try:
-        # ── Alert to admin ──
         admin_msg = Message(
             subject=f'New ALGO Order #{order_id} — Rs.{total}',
             sender=ADMIN_EMAIL,
@@ -103,12 +104,9 @@ Customer    : {customer_name} ({customer_email})
 Amount      : Rs.{total}
 Payment     : {payment_method.upper()}
 Time        : {datetime.now().strftime('%d %b %Y, %I:%M %p')}
-
-View: http://localhost:5000/admin/orders
         """
         mail.send(admin_msg)
 
-        # ── Confirmation to customer ──
         customer_msg = Message(
             subject=f'Your ALGO Order #{order_id} is confirmed!',
             sender=ADMIN_EMAIL,
@@ -136,7 +134,7 @@ Wear your story.
 # ── HOMEPAGE ───────────────────────────────────────────────────────
 @app.route('/')
 def index():
-    cur = mysql.connection.cursor()
+    cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
     cur.execute("SELECT * FROM products WHERE is_active=1 ORDER BY created_at DESC LIMIT 6")
     featured = cur.fetchall()
     cur.execute("SELECT * FROM products WHERE is_upcoming=1 LIMIT 5")
@@ -149,7 +147,7 @@ def index():
 @app.route('/collection')
 def collection():
     category = request.args.get('category', '')
-    cur = mysql.connection.cursor()
+    cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
     if category:
         cur.execute("SELECT * FROM products WHERE is_active=1 AND category=%s ORDER BY created_at DESC", (category,))
     else:
@@ -163,7 +161,7 @@ def collection():
 
 @app.route('/product/<int:product_id>')
 def product_detail(product_id):
-    cur = mysql.connection.cursor()
+    cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
     cur.execute("SELECT * FROM products WHERE id=%s AND is_active=1", (product_id,))
     product = cur.fetchone()
     if not product:
@@ -181,7 +179,7 @@ def cart():
     items = []
     total = 0
     if cart_data:
-        cur = mysql.connection.cursor()
+        cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
         for pid, info in cart_data.items():
             cur.execute("SELECT * FROM products WHERE id=%s", (pid,))
             p = cur.fetchone()
@@ -238,7 +236,7 @@ def login():
     if request.method == 'POST':
         email    = request.form['email']
         password = request.form['password']
-        cur = mysql.connection.cursor()
+        cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
         cur.execute("SELECT * FROM users WHERE email=%s", (email,))
         user = cur.fetchone()
         cur.close()
@@ -257,7 +255,7 @@ def signup():
         name     = request.form['name']
         email    = request.form['email']
         password = request.form['password']
-        cur = mysql.connection.cursor()
+        cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
         cur.execute("SELECT id FROM users WHERE email=%s", (email,))
         if cur.fetchone():
             cur.close()
@@ -283,7 +281,7 @@ def verify_otp_page():
         user_otp = request.form['otp']
         if user_otp == session.get('otp'):
             user = session.get('temp_user')
-            cur = mysql.connection.cursor()
+            cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
             cur.execute(
                 "INSERT INTO users (name, email, password_hash) VALUES (%s, %s, %s)",
                 (user['name'], user['email'], user['password'])
@@ -313,7 +311,7 @@ def lookbook():
 @app.route('/admin')
 @admin_required
 def admin():
-    cur = mysql.connection.cursor()
+    cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
     cur.execute("SELECT * FROM products ORDER BY created_at DESC")
     products = cur.fetchall()
     cur.execute("SELECT COUNT(*) as cnt FROM users")
@@ -324,7 +322,7 @@ def admin():
 @app.route('/admin/orders')
 @admin_required
 def admin_orders():
-    cur = mysql.connection.cursor()
+    cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
     cur.execute("""
         SELECT o.*, u.name as customer_name, u.email as customer_email
         FROM orders o
@@ -350,11 +348,11 @@ def admin_add_product():
             file = request.files['image']
             if file and allowed_file(file.filename):
                 filename  = secure_filename(file.filename)
-                save_path = os.path.join(app.config['UPLOAD_FOLDER'])
+                save_path = app.config['UPLOAD_FOLDER']
                 os.makedirs(save_path, exist_ok=True)
                 file.save(os.path.join(save_path, filename))
                 image_url = f'/uploads/products/{filename}'
-        cur = mysql.connection.cursor()
+        cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
         cur.execute("""
             INSERT INTO products (name, price, description, category, stock, image_url, is_upcoming, is_active)
             VALUES (%s, %s, %s, %s, %s, %s, %s, 1)
@@ -368,7 +366,7 @@ def admin_add_product():
 @app.route('/admin/product/edit/<int:pid>', methods=['GET', 'POST'])
 @admin_required
 def admin_edit_product(pid):
-    cur = mysql.connection.cursor()
+    cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
     if request.method == 'POST':
         name        = request.form['name']
         price       = float(request.form['price'])
@@ -393,7 +391,7 @@ def admin_edit_product(pid):
 @app.route('/admin/product/delete/<int:pid>', methods=['POST'])
 @admin_required
 def admin_delete_product(pid):
-    cur = mysql.connection.cursor()
+    cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
     cur.execute("DELETE FROM products WHERE id=%s", (pid,))
     mysql.connection.commit()
     cur.close()
@@ -413,7 +411,7 @@ def cart_count_api():
 @app.route('/api/new-orders-count')
 @admin_required
 def new_orders_count():
-    cur = mysql.connection.cursor()
+    cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
     cur.execute("SELECT COUNT(*) as cnt FROM orders WHERE status='confirmed'")
     count = cur.fetchone()['cnt']
     cur.close()
@@ -427,7 +425,7 @@ def checkout():
     if not cart:
         return redirect(url_for('cart'))
 
-    cur = mysql.connection.cursor()
+    cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
     cart_items = []
     subtotal   = 0
 
@@ -445,10 +443,11 @@ def checkout():
                 'subtotal': sub
             })
 
-    shipping    = 0 if subtotal >= 999 else 99
-    grand_total = subtotal + shipping
+    shipping     = 0 if subtotal >= 999 else 99
+    grand_total  = subtotal + shipping
     amount_paise = int(grand_total * 100)
 
+    rz_client = get_rz_client()
     rz_order = rz_client.order.create({
         'amount':   amount_paise,
         'currency': 'INR',
@@ -481,7 +480,6 @@ def place_order():
     order_id       = request.form.get('order_id')
     payment_method = request.form.get('payment_method', 'cod')
 
-    # ── Server-side validation ──
     required = {
         'name':  request.form.get('name', '').strip(),
         'phone': request.form.get('phone', '').strip(),
@@ -493,10 +491,9 @@ def place_order():
 
     for field, value in required.items():
         if not value:
-            flash(f'Please fill in all required address fields.', 'error')
+            flash('Please fill in all required address fields.', 'error')
             return redirect(url_for('cart'))
 
-    import re
     if not re.match(r'^[6-9]\d{9}$', required['phone']):
         flash('Enter a valid 10-digit mobile number.', 'error')
         return redirect(url_for('cart'))
@@ -508,13 +505,16 @@ def place_order():
     if payment_method != 'cod':
         return redirect(url_for('cart'))
 
-    # Save address + update order
-    delivery_address = f"{required['name']}, {required['addr1']}, {request.form.get('addr2','').strip()}, {required['city']}, {required['state']} - {required['pin']} | Ph: {required['phone']}"
+    delivery_address = (
+        f"{required['name']}, {required['addr1']}, "
+        f"{request.form.get('addr2','').strip()}, "
+        f"{required['city']}, {required['state']} - {required['pin']} "
+        f"| Ph: {required['phone']}"
+    )
 
-    cur = mysql.connection.cursor()
+    cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
     cur.execute("""
-        UPDATE orders
-        SET status='confirmed', payment_method='cod', address=%s
+        UPDATE orders SET status='confirmed', payment_method='cod', address=%s
         WHERE id=%s AND user_id=%s
     """, (delivery_address, order_id, session['user_id']))
     mysql.connection.commit()
@@ -536,7 +536,7 @@ def place_order():
     session.pop('cart', None)
     return redirect(url_for('order_success', order_id=order_id))
 
-# ── PAYMENT VERIFY (Online) ────────────────────────────────────────
+# ── PAYMENT VERIFY ─────────────────────────────────────────────────
 @app.route('/payment/verify', methods=['POST'])
 @login_required
 def verify_payment():
@@ -546,16 +546,14 @@ def verify_payment():
     rz_signature  = data.get('razorpay_signature')
     db_order_id   = data.get('order_id')
 
-    # Verify HMAC signature
     msg      = f"{rz_order_id}|{rz_payment_id}".encode()
-    secret   = os.getenv('RAZORPAY_KEY_SECRET').encode()
+    secret   = os.getenv('RAZORPAY_KEY_SECRET', '').encode()
     expected = hmac.new(secret, msg, hashlib.sha256).hexdigest()
 
     if not hmac.compare_digest(expected, rz_signature):
         return jsonify({'success': False, 'error': 'Invalid signature'}), 400
 
-    # Update order in DB
-    cur = mysql.connection.cursor()
+    cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
     cur.execute("""
         UPDATE orders SET
             status='confirmed',
@@ -566,7 +564,6 @@ def verify_payment():
     """, (rz_payment_id, rz_signature, db_order_id, session['user_id']))
     mysql.connection.commit()
 
-    # Get customer info for email
     cur.execute("SELECT email FROM users WHERE id=%s", (session['user_id'],))
     user = cur.fetchone()
     cur.execute("SELECT total_amount FROM orders WHERE id=%s", (db_order_id,))
@@ -601,7 +598,7 @@ def razorpay_webhook():
     event = request.get_json()
     if event.get('event') == 'payment.captured':
         rz_order_id = event['payload']['payment']['entity'].get('order_id')
-        cur = mysql.connection.cursor()
+        cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
         cur.execute("""
             UPDATE orders SET status='confirmed', paid_at=NOW()
             WHERE razorpay_order_id=%s AND status='pending'
@@ -615,7 +612,7 @@ def razorpay_webhook():
 @app.route('/order/success/<int:order_id>')
 @login_required
 def order_success(order_id):
-    cur = mysql.connection.cursor()
+    cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
     cur.execute("SELECT * FROM orders WHERE id=%s AND user_id=%s",
                 (order_id, session['user_id']))
     order = cur.fetchone()
