@@ -537,17 +537,6 @@ def checkout():
     order_id = cur.lastrowid
     cur.close()
 
-# Store address in session temporarily for online payments
-session['pending_address'] = {
-    'name':  request.form.get('name', ''),
-    'phone': request.form.get('phone', ''),
-    'addr1': request.form.get('addr1', ''),
-    'addr2': request.form.get('addr2', ''),
-    'city':  request.form.get('city', ''),
-    'pin':   request.form.get('pin', ''),
-    'state': request.form.get('state', ''),
-}
-
     return render_template('checkout.html',
         rz_key      = os.getenv('RAZORPAY_KEY_ID'),
         rz_order_id = rz_order['id'],
@@ -639,6 +628,22 @@ def verify_payment():
     rz_signature  = data.get('razorpay_signature')
     db_order_id   = data.get('order_id')
 
+    # ── Get address from request ──
+    customer_name = data.get('customer_name', session.get('username', 'Customer'))
+    phone         = data.get('phone', '')
+    addr1         = data.get('addr1', '')
+    addr2         = data.get('addr2', '')
+    city          = data.get('city', '')
+    pin           = data.get('pin', '')
+    state         = data.get('state', '')
+
+    delivery_address = (
+        f"{addr1}"
+        f"{', ' + addr2 if addr2 else ''}, "
+        f"{city}, {state} - {pin}"
+    )
+
+    # Verify HMAC signature
     msg      = f"{rz_order_id}|{rz_payment_id}".encode()
     secret   = os.getenv('RAZORPAY_KEY_SECRET', '').encode()
     expected = hmac.new(secret, msg, hashlib.sha256).hexdigest()
@@ -646,19 +651,22 @@ def verify_payment():
     if not hmac.compare_digest(expected, rz_signature):
         return jsonify({'success': False, 'error': 'Invalid signature'}), 400
 
+    # Update order with payment + address
     cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
     cur.execute("""
         UPDATE orders SET
             status='confirmed',
             razorpay_payment_id=%s,
             razorpay_signature=%s,
-            paid_at=NOW()
+            paid_at=NOW(),
+            address=%s,
+            phone=%s
         WHERE id=%s AND user_id=%s
-    """, (rz_payment_id, rz_signature, db_order_id, session['user_id']))
+    """, (rz_payment_id, rz_signature, delivery_address, phone, db_order_id, session['user_id']))
     mysql.connection.commit()
 
     cur.execute("SELECT email FROM users WHERE id=%s", (session['user_id'],))
-    user = cur.fetchone()
+    user  = cur.fetchone()
     cur.execute("SELECT total_amount FROM orders WHERE id=%s", (db_order_id,))
     order = cur.fetchone()
     cur.close()
@@ -667,8 +675,10 @@ def verify_payment():
         order_id       = db_order_id,
         total          = order['total_amount'],
         payment_method = 'online',
-        customer_name  = session.get('username', 'Customer'),
-        customer_email = user['email']
+        customer_name  = customer_name,
+        customer_email = user['email'],
+        address        = delivery_address,
+        phone          = phone
     )
 
     session.pop('cart', None)
