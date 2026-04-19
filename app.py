@@ -394,32 +394,40 @@ def admin_add_product():
         category    = request.form['category']
         stock       = int(request.form['stock'])
         is_upcoming = 1 if request.form.get('is_upcoming') else 0
-        image_url   = ''
 
-        if 'image' in request.files:
-            file = request.files['image']
-            if file and allowed_file(file.filename):
-                # Upload directly to Cloudinary
-                result = cloudinary.uploader.upload(
-                    file,
-                    folder='algo_products',
-                    transformation=[
-                        {'width': 800, 'height': 1000,
-                         'crop': 'fill', 'quality': 'auto'}
-                    ]
-                )
-                image_url = result['secure_url']  # permanent HTTPS URL
+        def upload_image(field_name):
+            if field_name in request.files:
+                file = request.files[field_name]
+                if file and file.filename and allowed_file(file.filename):
+                    result = cloudinary.uploader.upload(
+                        file,
+                        folder='algo_products',
+                        transformation=[
+                            {'width': 800, 'height': 1000,
+                             'crop': 'fill', 'quality': 'auto'}
+                        ]
+                    )
+                    return result['secure_url']
+            return ''
+
+        image_url  = upload_image('image')
+        image_url2 = upload_image('image2')
+        image_url3 = upload_image('image3')
 
         cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
         cur.execute("""
-            INSERT INTO products (name, price, description, category, stock, image_url, is_upcoming, is_active)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, 1)
-        """, (name, price, description, category, stock, image_url, is_upcoming))
+            INSERT INTO products
+                (name, price, description, category, stock,
+                 image_url, image_url2, image_url3, is_upcoming, is_active)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 1)
+        """, (name, price, description, category, stock,
+              image_url, image_url2, image_url3, is_upcoming))
         mysql.connection.commit()
         cur.close()
         flash('Product added!', 'success')
         return redirect(url_for('admin'))
     return render_template('admin_product_form.html', product=None)
+
 
 @app.route('/admin/product/edit/<int:pid>', methods=['GET', 'POST'])
 @admin_required
@@ -434,25 +442,34 @@ def admin_edit_product(pid):
         is_upcoming = 1 if request.form.get('is_upcoming') else 0
         is_active   = 1 if request.form.get('is_active') else 0
 
-        # Check if new image uploaded
-        image_url = request.form.get('existing_image', '')
-        if 'image' in request.files:
-            file = request.files['image']
-            if file and file.filename and allowed_file(file.filename):
-                result = cloudinary.uploader.upload(
-                    file,
-                    folder='algo_products',
-                    transformation=[
-                        {'width': 800, 'height': 1000,
-                         'crop': 'fill', 'quality': 'auto'}
-                    ]
-                )
-                image_url = result['secure_url']
+        def upload_image(field_name, existing_field):
+            if field_name in request.files:
+                file = request.files[field_name]
+                if file and file.filename and allowed_file(file.filename):
+                    result = cloudinary.uploader.upload(
+                        file,
+                        folder='algo_products',
+                        transformation=[
+                            {'width': 800, 'height': 1000,
+                             'crop': 'fill', 'quality': 'auto'}
+                        ]
+                    )
+                    return result['secure_url']
+            return request.form.get(existing_field, '')
+
+        image_url  = upload_image('image',  'existing_image')
+        image_url2 = upload_image('image2', 'existing_image2')
+        image_url3 = upload_image('image3', 'existing_image3')
 
         cur.execute("""
-            UPDATE products SET name=%s, price=%s, description=%s, category=%s,
-            stock=%s, is_upcoming=%s, is_active=%s, image_url=%s WHERE id=%s
-        """, (name, price, description, category, stock, is_upcoming, is_active, image_url, pid))
+            UPDATE products SET
+                name=%s, price=%s, description=%s, category=%s,
+                stock=%s, is_upcoming=%s, is_active=%s,
+                image_url=%s, image_url2=%s, image_url3=%s
+            WHERE id=%s
+        """, (name, price, description, category, stock,
+              is_upcoming, is_active,
+              image_url, image_url2, image_url3, pid))
         mysql.connection.commit()
         cur.close()
         flash('Product updated!', 'success')
@@ -476,6 +493,86 @@ def admin_delete_product(pid):
 @app.route('/uploads/products/<path:filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+# ── LOOKBOOK ───────────────────────────────────────────────────────
+@app.route('/lookbook')
+def lookbook():
+    cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+    cur.execute("""
+        SELECT * FROM lookbook
+        WHERE is_active=1
+        ORDER BY chapter ASC, created_at ASC
+    """)
+    images = cur.fetchall()
+    cur.close()
+
+    # Group by chapter
+    chapters = {}
+    for img in images:
+        ch = img['chapter']
+        if ch not in chapters:
+            chapters[ch] = []
+        chapters[ch].append(img)
+
+    cart_count = sum(item['qty'] for item in session.get('cart', {}).values()) if session.get('cart') else 0
+    return render_template('lookbook.html', chapters=chapters, cart_count=cart_count)
+
+
+# ── ADMIN LOOKBOOK ─────────────────────────────────────────────────
+@app.route('/admin/lookbook')
+@admin_required
+def admin_lookbook():
+    cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+    cur.execute("SELECT * FROM lookbook ORDER BY chapter ASC, created_at ASC")
+    images = cur.fetchall()
+    cur.close()
+    return render_template('admin_lookbook.html', images=images)
+
+
+@app.route('/admin/lookbook/add', methods=['POST'])
+@admin_required
+def admin_lookbook_add():
+    title    = request.form.get('title', '').strip()
+    chapter  = int(request.form.get('chapter', 1))
+    position = request.form.get('position', 'normal')
+    image_url = ''
+
+    if 'image' in request.files:
+        file = request.files['image']
+        if file and allowed_file(file.filename):
+            result = cloudinary.uploader.upload(
+                file,
+                folder='algo_lookbook',
+                transformation=[
+                    {'width': 1200, 'quality': 'auto', 'crop': 'limit'}
+                ]
+            )
+            image_url = result['secure_url']
+
+    if not image_url:
+        flash('Please upload an image.', 'error')
+        return redirect(url_for('admin_lookbook'))
+
+    cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+    cur.execute("""
+        INSERT INTO lookbook (title, image_url, chapter, position)
+        VALUES (%s, %s, %s, %s)
+    """, (title, image_url, chapter, position))
+    mysql.connection.commit()
+    cur.close()
+
+    flash('Lookbook image added!', 'success')
+    return redirect(url_for('admin_lookbook'))
+
+
+@app.route('/admin/lookbook/delete/<int:lid>', methods=['POST'])
+@admin_required
+def admin_lookbook_delete(lid):
+    cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+    cur.execute("DELETE FROM lookbook WHERE id=%s", (lid,))
+    mysql.connection.commit()
+    cur.close()
+    return jsonify({'success': True})
 
 # ── API ────────────────────────────────────────────────────────────
 @app.route('/api/cart-count')
