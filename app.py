@@ -352,12 +352,6 @@ def logout():
     session.clear()
     return redirect(url_for('index'))
 
-# ── LOOKBOOK ───────────────────────────────────────────────────────
-@app.route('/lookbook')
-def lookbook():
-    cart_count = sum(item['qty'] for item in session.get('cart', {}).values()) if session.get('cart') else 0
-    return render_template('lookbook.html', cart_count=cart_count)
-
 # ── ADMIN ──────────────────────────────────────────────────────────
 @app.route('/admin')
 @admin_required
