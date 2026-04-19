@@ -12,6 +12,7 @@
   </div>
 
   <div class="product-detail__layout">
+
     <!-- Images -->
     <div class="product-detail__gallery">
       <div class="product-detail__main-image" id="mainImage">
@@ -27,14 +28,32 @@
         <div class="product-detail__frame-corner product-detail__frame-corner--bl"></div>
         <div class="product-detail__frame-corner product-detail__frame-corner--br"></div>
       </div>
-      {% if product.image_url2 %}
+
+      <!-- Thumbnails — show if any extra images exist -->
+      {% if product.image_url2 or product.image_url3 %}
       <div class="product-detail__thumbnails">
-        <div class="product-detail__thumb active" onclick="switchImage('{{ product.image_url }}', this)">
-          <img src="{{ product.image_url }}" alt="">
+
+        {% if product.image_url %}
+        <div class="product-detail__thumb active"
+             onclick="switchImage('{{ product.image_url }}', this)">
+          <img src="{{ product.image_url }}" alt="View 1">
         </div>
-        <div class="product-detail__thumb" onclick="switchImage('{{ product.image_url2 }}', this)">
-          <img src="{{ product.image_url2 }}" alt="">
+        {% endif %}
+
+        {% if product.image_url2 %}
+        <div class="product-detail__thumb"
+             onclick="switchImage('{{ product.image_url2 }}', this)">
+          <img src="{{ product.image_url2 }}" alt="View 2">
         </div>
+        {% endif %}
+
+        {% if product.image_url3 %}
+        <div class="product-detail__thumb"
+             onclick="switchImage('{{ product.image_url3 }}', this)">
+          <img src="{{ product.image_url3 }}" alt="View 3">
+        </div>
+        {% endif %}
+
       </div>
       {% endif %}
     </div>
@@ -182,7 +201,12 @@ function addToCart(id, name) {
 }
 
 function switchImage(src, thumb) {
-  document.getElementById('mainImg').src = src;
+  const mainImg = document.getElementById('mainImg');
+  mainImg.style.opacity = '0';
+  setTimeout(() => {
+    mainImg.src = src;
+    mainImg.style.opacity = '1';
+  }, 150);
   document.querySelectorAll('.product-detail__thumb').forEach(t => t.classList.remove('active'));
   thumb.classList.add('active');
 }
