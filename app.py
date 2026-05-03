@@ -713,67 +713,83 @@ def place_order():
 @app.route('/payment/verify', methods=['POST'])
 @login_required
 def verify_payment():
-    data          = request.get_json()
-    rz_order_id   = data.get('razorpay_order_id')
-    rz_payment_id = data.get('razorpay_payment_id')
-    rz_signature  = data.get('razorpay_signature')
-    db_order_id   = data.get('order_id')
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data received'}), 400
 
-    # ── Get address from request ──
-    customer_name = data.get('customer_name', session.get('username', 'Customer'))
-    phone         = data.get('phone', '')
-    addr1         = data.get('addr1', '')
-    addr2         = data.get('addr2', '')
-    city          = data.get('city', '')
-    pin           = data.get('pin', '')
-    state         = data.get('state', '')
+        rz_order_id   = data.get('razorpay_order_id', '')
+        rz_payment_id = data.get('razorpay_payment_id', '')
+        rz_signature  = data.get('razorpay_signature', '')
+        db_order_id   = int(data.get('order_id', 0))  # cast to int
 
-    delivery_address = (
-        f"{addr1}"
-        f"{', ' + addr2 if addr2 else ''}, "
-        f"{city}, {state} - {pin}"
-    )
+        customer_name = data.get('customer_name', session.get('username', 'Customer'))
+        phone         = data.get('phone', '')
+        addr1         = data.get('addr1', '')
+        addr2         = data.get('addr2', '')
+        city          = data.get('city', '')
+        pin           = data.get('pin', '')
+        state         = data.get('state', '')
 
-    # Verify HMAC signature
-    msg      = f"{rz_order_id}|{rz_payment_id}".encode()
-    secret   = os.getenv('RAZORPAY_KEY_SECRET', '').encode()
-    expected = hmac.new(secret, msg, hashlib.sha256).hexdigest()
+        delivery_address = (
+            f"{addr1}"
+            f"{', ' + addr2 if addr2 else ''}, "
+            f"{city}, {state} - {pin}"
+        )
 
-    if not hmac.compare_digest(expected, rz_signature):
-        return jsonify({'success': False, 'error': 'Invalid signature'}), 400
+        # ── Verify HMAC signature ──
+        msg      = f"{rz_order_id}|{rz_payment_id}".encode()
+        secret   = os.getenv('RAZORPAY_KEY_SECRET', '').encode()
+        expected = hmac.new(
+            key      = secret,
+            msg      = msg,
+            digestmod = hashlib.sha256
+        ).hexdigest()
 
-    # Update order with payment + address
-    cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-    cur.execute("""
-        UPDATE orders SET
-            status='confirmed',
-            razorpay_payment_id=%s,
-            razorpay_signature=%s,
-            paid_at=NOW(),
-            address=%s,
-            phone=%s
-        WHERE id=%s AND user_id=%s
-    """, (rz_payment_id, rz_signature, delivery_address, phone, db_order_id, session['user_id']))
-    mysql.connection.commit()
+        if not hmac.compare_digest(expected, rz_signature):
+            print(f"[PAYMENT] Signature mismatch for order {db_order_id}")
+            return jsonify({'success': False, 'error': 'Invalid signature'}), 400
 
-    cur.execute("SELECT email FROM users WHERE id=%s", (session['user_id'],))
-    user  = cur.fetchone()
-    cur.execute("SELECT total_amount FROM orders WHERE id=%s", (db_order_id,))
-    order = cur.fetchone()
-    cur.close()
+        # ── Update DB ──
+        cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+        cur.execute("""
+            UPDATE orders SET
+                status='confirmed',
+                razorpay_payment_id=%s,
+                razorpay_signature=%s,
+                paid_at=NOW(),
+                address=%s,
+                phone=%s
+            WHERE id=%s AND user_id=%s
+        """, (rz_payment_id, rz_signature, delivery_address,
+              phone, db_order_id, session['user_id']))
+        mysql.connection.commit()
+        print(f"[PAYMENT] Order {db_order_id} confirmed")
 
-    send_order_notification(
-        order_id       = db_order_id,
-        total          = order['total_amount'],
-        payment_method = 'online',
-        customer_name  = customer_name,
-        customer_email = user['email'],
-        address        = delivery_address,
-        phone          = phone
-    )
+        # ── Get user and order for email ──
+        cur.execute("SELECT email FROM users WHERE id=%s", (session['user_id'],))
+        user = cur.fetchone()
+        cur.execute("SELECT total_amount FROM orders WHERE id=%s", (db_order_id,))
+        order = cur.fetchone()
+        cur.close()
 
-    session.pop('cart', None)
-    return jsonify({'success': True, 'order_id': db_order_id})
+        if user and order:
+            send_order_notification(
+                order_id       = db_order_id,
+                total          = order['total_amount'],
+                payment_method = 'online',
+                customer_name  = customer_name,
+                customer_email = user['email'],
+                address        = delivery_address,
+                phone          = phone
+            )
+
+        session.pop('cart', None)
+        return jsonify({'success': True, 'order_id': db_order_id})
+
+    except Exception as e:
+        print(f"[PAYMENT ERROR] {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # ── RAZORPAY WEBHOOK ───────────────────────────────────────────────
 @app.route('/webhook/razorpay', methods=['POST'])

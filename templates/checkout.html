@@ -239,15 +239,13 @@
 .app-btn:hover, .app-btn.active { background:#1a1714; color:#f0e6d3; border-color:#1a1714; }
 </style>
 
-<script>
 const RZ_KEY   = '{{ rz_key }}';
 const RZ_ORDER = '{{ rz_order_id }}';
 const AMOUNT   = {{ amount }};
 const ORDER_ID = {{ order_id }};
-const BASE     = {{ subtotal + (0 if subtotal >= 999 else 99) }};
+const BASE     = {{ grand_total }};
 
 let currentMethod = 'upi';
-const methods = ['upi','card','nb','cod'];
 const btnLabels = { upi:'UPI', card:'Card', nb:'Net Banking', cod:'Cash on Delivery' };
 const btnNotes  = {
   upi:  'UPI payment processed via Razorpay',
@@ -258,18 +256,20 @@ const btnNotes  = {
 
 function selectMethod(m) {
   currentMethod = m;
-  methods.forEach(id => {
+  ['upi','card','nb','cod'].forEach(id => {
     document.getElementById('opt-'+id).classList.toggle('selected', id===m);
     document.getElementById('body-'+id).classList.toggle('open', id===m);
   });
   document.getElementById('placeOrderBtn').textContent = 'Place Order — ' + btnLabels[m];
   document.getElementById('methodNote').textContent    = btnNotes[m];
   document.getElementById('paymentMethodInput').value  = m;
-  // COD fee toggle
+
   const codRow = document.getElementById('codFeeRow');
-  codRow.style.display = m==='cod' ? 'flex' : 'none';
-  document.getElementById('totalDisplay').textContent =
-    '₹' + (m==='cod' ? BASE+25 : BASE).toLocaleString('en-IN');
+  if (codRow) {
+    codRow.style.display = m==='cod' ? 'flex' : 'none';
+    document.getElementById('totalDisplay').textContent =
+      '₹' + (m==='cod' ? BASE+25 : BASE).toLocaleString('en-IN');
+  }
 }
 
 function pickApp(btn, app) {
@@ -283,153 +283,158 @@ function verifyUPI() {
   const btn = document.getElementById('upiVerifyBtn');
   if (!val) { document.getElementById('upiId').focus(); return; }
   btn.textContent = 'Checking…';
-  // In production: call your Flask endpoint to verify via Razorpay API
   setTimeout(() => {
     const ok = val.includes('@');
-    btn.textContent = ok ? '✓ Valid' : 'Invalid ID';
-    if (ok) btn.style.background = '#166534';
-    setTimeout(() => { btn.textContent='Verify'; btn.style.background='#1a1714'; }, 2200);
+    btn.textContent = ok ? '✓ Valid' : 'Invalid';
+    btn.style.background = ok ? '#166534' : '#991b1b';
+    setTimeout(() => {
+      btn.textContent = 'Verify';
+      btn.style.background = '#1a1714';
+    }, 2000);
   }, 700);
 }
 
 function placeOrder() {
-    // ── Validate all address fields ──
-    const fields = [
-        { id: 'field-name',   label: 'Full name' },
-        { id: 'field-phone',  label: 'Phone number' },
-        { id: 'field-addr1',  label: 'Address line 1' },
-        { id: 'field-city',   label: 'City' },
-        { id: 'field-pin',    label: 'PIN code' },
-        { id: 'field-state',  label: 'State' },
-    ];
+  // ── Validate address fields ──
+  const fields = [
+    { id: 'field-name',  label: 'Full name' },
+    { id: 'field-phone', label: 'Phone number' },
+    { id: 'field-addr1', label: 'Address line 1' },
+    { id: 'field-city',  label: 'City' },
+    { id: 'field-pin',   label: 'PIN code' },
+    { id: 'field-state', label: 'State' },
+  ];
 
-    let firstError = null;
+  let firstError = null;
+  fields.forEach(f => {
+    const el = document.getElementById(f.id);
+    if (!el || !el.value.trim()) {
+      if (el) el.classList.add('input-error');
+      if (!firstError && el) firstError = el;
+    } else {
+      el.classList.remove('input-error');
+    }
+  });
 
-    fields.forEach(f => {
-        const el = document.getElementById(f.id);
-        if (!el.value.trim()) {
-            el.classList.add('input-error');
-            if (!firstError) firstError = el;
+  if (firstError) {
+    firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    firstError.focus();
+    showToast('Please fill in all required fields');
+    return;
+  }
+
+  // ── Copy address to hidden form fields ──
+  document.getElementById('input-name').value  = document.getElementById('field-name').value.trim();
+  document.getElementById('input-phone').value = document.getElementById('field-phone').value.trim();
+  document.getElementById('input-addr1').value = document.getElementById('field-addr1').value.trim();
+  document.getElementById('input-addr2').value = (document.getElementById('field-addr2') || {value:''}).value.trim();
+  document.getElementById('input-city').value  = document.getElementById('field-city').value.trim();
+  document.getElementById('input-pin').value   = document.getElementById('field-pin').value.trim();
+  document.getElementById('input-state').value = document.getElementById('field-state').value.trim();
+
+  const btn = document.getElementById('placeOrderBtn');
+
+  // ── COD — just submit form ──
+  if (currentMethod === 'cod') {
+    btn.textContent = 'Placing Order...';
+    btn.disabled = true;
+    document.getElementById('checkoutForm').submit();
+    return;
+  }
+
+  // ── Online payment via Razorpay ──
+  btn.textContent = 'Opening payment...';
+  btn.disabled = true;
+
+  const options = {
+    key:         RZ_KEY,
+    amount:      AMOUNT,
+    currency:    'INR',
+    name:        'ALGO WEAR',
+    description: 'Order #' + ORDER_ID,
+    order_id:    RZ_ORDER,
+    theme:       { color: '#0a0a0a' },
+    prefill: {
+      name:  document.getElementById('field-name').value.trim(),
+      contact: document.getElementById('field-phone').value.trim(),
+    },
+    handler: function(response) {
+      // ── Payment successful — verify with backend ──
+      btn.textContent = 'Verifying payment...';
+
+      fetch('/payment/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          razorpay_order_id:   response.razorpay_order_id,
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_signature:  response.razorpay_signature,
+          order_id:            ORDER_ID,
+          customer_name: document.getElementById('field-name').value.trim(),
+          phone:         document.getElementById('field-phone').value.trim(),
+          addr1:         document.getElementById('field-addr1').value.trim(),
+          addr2:         (document.getElementById('field-addr2') || {value:''}).value.trim(),
+          city:          document.getElementById('field-city').value.trim(),
+          pin:           document.getElementById('field-pin').value.trim(),
+          state:         document.getElementById('field-state').value.trim(),
+        })
+      })
+      .then(r => {
+        if (!r.ok) throw new Error('Server error: ' + r.status);
+        return r.json();
+      })
+      .then(data => {
+        if (data.success) {
+          // ── Redirect to success page ──
+          window.location.href = '/order/success/' + data.order_id;
         } else {
-            el.classList.remove('input-error');
+          btn.textContent = 'Place Order — ' + btnLabels[currentMethod];
+          btn.disabled = false;
+          alert('Payment verification failed. Please contact support with Order #' + ORDER_ID);
         }
-    });
-
-    // Phone validation — must be 10 digits
-    const phone = document.getElementById('field-phone');
-    if (phone.value.trim() && !/^[6-9]\d{9}$/.test(phone.value.trim())) {
-        phone.classList.add('input-error');
-        showFieldError(phone, 'Enter a valid 10-digit Indian mobile number');
-        if (!firstError) firstError = phone;
+      })
+      .catch(err => {
+        console.error('Verify error:', err);
+        btn.textContent = 'Place Order — ' + btnLabels[currentMethod];
+        btn.disabled = false;
+        alert('Something went wrong during verification. Please contact support with Order #' + ORDER_ID + '\nYour payment may have gone through — do not pay again.');
+      });
+    },
+    modal: {
+      ondismiss: function() {
+        btn.textContent = 'Place Order — ' + btnLabels[currentMethod];
+        btn.disabled = false;
+      },
+      escape: true,
+      backdropclose: false
     }
+  };
 
-    // PIN validation — must be 6 digits
-    const pin = document.getElementById('field-pin');
-    if (pin.value.trim() && !/^\d{6}$/.test(pin.value.trim())) {
-        pin.classList.add('input-error');
-        showFieldError(pin, 'PIN code must be 6 digits');
-        if (!firstError) firstError = pin;
-    }
-
-    // UPI validation — if UPI selected, ID must be filled
-    if (currentMethod === 'upi') {
-        const upiId = document.getElementById('upiId');
-        if (!upiId.value.trim() || !upiId.value.includes('@')) {
-            upiId.classList.add('input-error');
-            showFieldError(upiId, 'Enter a valid UPI ID (e.g. name@upi)');
-            if (!firstError) firstError = upiId;
-        }
-    }
-
-    // Net banking — bank must be selected
-    if (currentMethod === 'nb') {
-        const bank = document.getElementById('field-bank');
-        if (!bank.value) {
-            bank.classList.add('input-error');
-            if (!firstError) firstError = bank;
-        }
-    }
-
-    if (firstError) {
-        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        firstError.focus();
-        return; // stop here — don't proceed
-    }
-
-    // ── All valid — copy values to hidden form ──
-    document.getElementById('input-name').value  = document.getElementById('field-name').value.trim();
-    document.getElementById('input-phone').value = document.getElementById('field-phone').value.trim();
-    document.getElementById('input-addr1').value = document.getElementById('field-addr1').value.trim();
-    document.getElementById('input-addr2').value = document.getElementById('field-addr2').value.trim();
-    document.getElementById('input-city').value  = document.getElementById('field-city').value.trim();
-    document.getElementById('input-pin').value   = document.getElementById('field-pin').value.trim();
-    document.getElementById('input-state').value = document.getElementById('field-state').value.trim();
-
-    const btn = document.getElementById('placeOrderBtn');
-
-    if (currentMethod === 'cod') {
-        btn.textContent = 'Placing Order...';
-        btn.disabled = true;
-        document.getElementById('checkoutForm').submit();
-        return;
-    }
-
-    btn.textContent = 'Opening payment...';
-    const options = {
-        key:         RZ_KEY,
-        amount:      AMOUNT,
-        currency:    'INR',
-        name:        'ALGO',
-        description: 'Order #' + ORDER_ID,
-        order_id:    RZ_ORDER,
-        theme:       { color: '#c0392b' },
-        handler: function(response) {
-            fetch('/payment/verify', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    razorpay_order_id:   response.razorpay_order_id,
-                    razorpay_payment_id: response.razorpay_payment_id,
-                    razorpay_signature:  response.razorpay_signature,
-                    order_id:            ORDER_ID
-                })
-            })
-            .then(r => r.json())
-            .then(d => {
-                if (d.success) window.location.href = '/order/success/' + d.order_id;
-                else alert('Payment verification failed. Contact support with order #' + ORDER_ID);
-            });
-        },
-        modal: {
-            ondismiss: function() {
-                btn.textContent = 'Place Order — ' + btnLabels[currentMethod];
-                btn.disabled = false;
-            }
-        }
-    };
-    new Razorpay(options).open();
+  const rzp = new Razorpay(options);
+  rzp.on('payment.failed', function(response) {
+    btn.textContent = 'Place Order — ' + btnLabels[currentMethod];
+    btn.disabled = false;
+    alert('Payment failed: ' + response.error.description + '\nPlease try again.');
+  });
+  rzp.open();
 }
 
-function showFieldError(el, msg) {
-    // Remove any existing error message for this field
-    const existing = el.parentElement.querySelector('.field-error-msg');
-    if (existing) existing.remove();
-    const err = document.createElement('p');
-    err.className = 'field-error-msg';
-    err.textContent = msg;
-    err.style.cssText = 'color:#c0392b;font-family:"DM Mono",monospace;font-size:.6rem;letter-spacing:.08em;margin:2px 0 0;';
-    el.parentElement.insertBefore(err, el.nextSibling);
-}
-
-// Clear error styling as user types
+// Clear error on input
 document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.co-input').forEach(input => {
-        input.addEventListener('input', function() {
-            this.classList.remove('input-error');
-            const errMsg = this.parentElement.querySelector('.field-error-msg');
-            if (errMsg) errMsg.remove();
-        });
+  document.querySelectorAll('.co-input').forEach(input => {
+    input.addEventListener('input', function() {
+      this.classList.remove('input-error');
     });
+  });
 });
-</script>
+
+function showToast(msg) {
+  // Use existing toast from base.html if available
+  const t = document.getElementById('toast');
+  if (t) {
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+}
 {% endblock %}
