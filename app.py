@@ -4,7 +4,7 @@ from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename, send_from_directory
 from functools import wraps
-from datetime import datetime
+from datetime import datetime, timedelta
 import MySQLdb.cursors
 import os
 import random
@@ -30,23 +30,13 @@ cloudinary.config(
     secure     = True
 )
 
-# ── Secret key ─────────────────────────────────────────────────────
-app.secret_key = os.getenv('SECRET_KEY')
-
-app.config['UPLOAD_FOLDER'] = 'uploads/products'
+# ── App config ─────────────────────────────────────────────────────
+app.secret_key                   = os.getenv('SECRET_KEY')
+app.permanent_session_lifetime   = timedelta(hours=2)
+app.config['UPLOAD_FOLDER']      = 'uploads/products'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
-
-from datetime import timedelta
-
-app.secret_key = os.getenv('SECRET_KEY')
-
-# ── Keep session alive for 2 hours ─────────────────────────────
-app.permanent_session_lifetime = timedelta(hours=2)
-
-@app.before_request
-def make_session_permanent():
-    session.permanent = True
 
 # ── MySQL ──────────────────────────────────────────────────────────
 app.config['MYSQL_HOST']         = os.getenv('MYSQL_HOST')
@@ -60,6 +50,7 @@ app.config['MYSQL_SSL_DISABLED'] = True
 
 mysql = MySQL(app)
 
+# ── Mail ───────────────────────────────────────────────────────────
 ADMIN_EMAIL = 'algowear.co@gmail.com'
 
 app.config['MAIL_SERVER']   = 'smtp.gmail.com'
@@ -77,6 +68,10 @@ def get_rz_client():
     )
 
 # ── Helpers ────────────────────────────────────────────────────────
+@app.before_request
+def make_session_permanent():
+    session.permanent = True
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -99,6 +94,10 @@ def admin_required(f):
 def generate_otp():
     return str(random.randint(100000, 999999))
 
+def get_cart_count():
+    cart = session.get('cart', {})
+    return sum(i['qty'] for i in cart.values()) if cart else 0
+
 def send_otp(email, otp):
     try:
         msg = Message(
@@ -111,15 +110,16 @@ def send_otp(email, otp):
     except Exception as e:
         print(f"[OTP EMAIL ERROR] {e}")
 
-def send_order_notification(order_id, total, payment_method, customer_name, customer_email, address='', phone=''):
+def send_order_notification(order_id, total, payment_method, customer_name,
+                            customer_email, address='', phone=''):
     try:
-        # ── Admin alert with full details ──
+        # Admin alert
         admin_msg = Message(
             subject=f'New ALGO Order #{order_id} — Rs.{total}',
             sender=ADMIN_EMAIL,
             recipients=[ADMIN_EMAIL]
         )
-        admin_msg.body = f'''
+        admin_msg.body = f"""
 ============================================
   NEW ORDER RECEIVED — ALGO
 ============================================
@@ -132,12 +132,12 @@ Time          : {datetime.now().strftime('%d %b %Y, %I:%M %p')}
 --------------------------------------------
 Name          : {customer_name}
 Email         : {customer_email}
-Phone         : {phone if phone else 'Not provided'}
+Phone         : {phone or 'Not provided'}
 
 --------------------------------------------
   DELIVERY ADDRESS
 --------------------------------------------
-{address if address else 'Not provided'}
+{address or 'Not provided'}
 
 --------------------------------------------
   ORDER DETAILS
@@ -148,17 +148,17 @@ Payment       : {payment_method.upper()}
 --------------------------------------------
 View in admin : https://algo-store.onrender.com/admin/orders
 ============================================
-        '''
+        """
         mail.send(admin_msg)
         print(f"[MAIL] Admin notified for order #{order_id}")
 
-        # ── Customer confirmation ──
+        # Customer confirmation
         customer_msg = Message(
             subject=f'Your ALGO Order #{order_id} is Confirmed!',
             sender=ADMIN_EMAIL,
             recipients=[customer_email]
         )
-        customer_msg.body = f'''
+        customer_msg.body = f"""
 Hey {customer_name},
 
 Your order has been placed successfully!
@@ -173,8 +173,8 @@ Payment       : {payment_method.upper()}
 --------------------------------------------
   DELIVERY ADDRESS
 --------------------------------------------
-{address if address else 'Not provided'}
-Phone         : {phone if phone else 'Not provided'}
+{address or 'Not provided'}
+Phone         : {phone or 'Not provided'}
 
 --------------------------------------------
 
@@ -186,12 +186,12 @@ Wear your story.
 — Team ALGO
 algowear.co@gmail.com
 ============================================
-        '''
+        """
         mail.send(customer_msg)
         print(f"[MAIL] Confirmation sent to {customer_email}")
 
     except Exception as e:
-        print(f"[MAIL ERROR] Order #{order_id} notification failed: {str(e)}")
+        print(f"[MAIL ERROR] Order #{order_id} notification failed: {e}")
 
 # ── HOMEPAGE ───────────────────────────────────────────────────────
 @app.route('/')
@@ -202,8 +202,8 @@ def index():
     cur.execute("SELECT * FROM products WHERE is_upcoming=1 LIMIT 5")
     upcoming = cur.fetchall()
     cur.close()
-    cart_count = sum(item['qty'] for item in session.get('cart', {}).values()) if session.get('cart') else 0
-    return render_template('index.html', featured=featured, upcoming=upcoming, cart_count=cart_count)
+    return render_template('index.html', featured=featured, upcoming=upcoming,
+                           cart_count=get_cart_count())
 
 # ── COLLECTION ─────────────────────────────────────────────────────
 @app.route('/collection')
@@ -211,15 +211,16 @@ def collection():
     category = request.args.get('category', '')
     cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
     if category:
-        cur.execute("SELECT * FROM products WHERE is_active=1 AND category=%s ORDER BY created_at DESC", (category,))
+        cur.execute("SELECT * FROM products WHERE is_active=1 AND category=%s ORDER BY created_at DESC",
+                    (category,))
     else:
         cur.execute("SELECT * FROM products WHERE is_active=1 ORDER BY created_at DESC")
     products = cur.fetchall()
     cur.execute("SELECT DISTINCT category FROM products WHERE is_active=1")
     categories = [r['category'] for r in cur.fetchall()]
     cur.close()
-    cart_count = sum(item['qty'] for item in session.get('cart', {}).values()) if session.get('cart') else 0
-    return render_template('collection.html', products=products, categories=categories, selected=category, cart_count=cart_count)
+    return render_template('collection.html', products=products, categories=categories,
+                           selected=category, cart_count=get_cart_count())
 
 @app.route('/product/<int:product_id>')
 def product_detail(product_id):
@@ -228,11 +229,12 @@ def product_detail(product_id):
     product = cur.fetchone()
     if not product:
         return redirect(url_for('collection'))
-    cur.execute("SELECT * FROM products WHERE category=%s AND id != %s AND is_active=1 LIMIT 4", (product['category'], product_id))
+    cur.execute("SELECT * FROM products WHERE category=%s AND id != %s AND is_active=1 LIMIT 4",
+                (product['category'], product_id))
     related = cur.fetchall()
     cur.close()
-    cart_count = sum(item['qty'] for item in session.get('cart', {}).values()) if session.get('cart') else 0
-    return render_template('product_detail.html', product=product, related=related, cart_count=cart_count)
+    return render_template('product_detail.html', product=product, related=related,
+                           cart_count=get_cart_count())
 
 # ── CART ───────────────────────────────────────────────────────────
 @app.route('/cart')
@@ -248,10 +250,11 @@ def cart():
             if p:
                 subtotal = p['price'] * info['qty']
                 total += subtotal
-                items.append({**p, 'qty': info['qty'], 'size': info.get('size', 'M'), 'subtotal': subtotal})
+                items.append({**p, 'qty': info['qty'],
+                              'size': info.get('size', 'M'), 'subtotal': subtotal})
         cur.close()
-    cart_count = sum(item['qty'] for item in cart_data.values()) if cart_data else 0
-    return render_template('cart.html', items=items, total=total, cart_count=cart_count)
+    return render_template('cart.html', items=items, total=total,
+                           cart_count=get_cart_count())
 
 @app.route('/cart/add', methods=['POST'])
 def add_to_cart():
@@ -273,8 +276,7 @@ def remove_from_cart():
     data = request.get_json()
     key  = data.get('key')
     cart = session.get('cart', {})
-    if key in cart:
-        del cart[key]
+    cart.pop(key, None)
     session['cart'] = cart
     return jsonify({'success': True})
 
@@ -308,8 +310,7 @@ def login():
             session['is_admin'] = bool(user['is_admin'])
             return redirect(url_for('index'))
         flash('Invalid credentials', 'error')
-    cart_count = sum(item['qty'] for item in session.get('cart', {}).values()) if session.get('cart') else 0
-    return render_template('auth.html', mode='login', cart_count=cart_count)
+    return render_template('auth.html', mode='login', cart_count=get_cart_count())
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
@@ -334,8 +335,7 @@ def signup():
         send_otp(email, otp)
         flash('OTP sent to your email', 'success')
         return redirect(url_for('verify_otp_page'))
-    cart_count = sum(item['qty'] for item in session.get('cart', {}).values()) if session.get('cart') else 0
-    return render_template('auth.html', mode='signup', cart_count=cart_count)
+    return render_template('auth.html', mode='signup', cart_count=get_cart_count())
 
 @app.route('/verify-otp', methods=['GET', 'POST'])
 def verify_otp_page():
@@ -354,8 +354,7 @@ def verify_otp_page():
             session.pop('temp_user', None)
             flash('Account created! Please log in.', 'success')
             return redirect(url_for('login'))
-        else:
-            flash('Invalid OTP. Please try again.', 'error')
+        flash('Invalid OTP. Please try again.', 'error')
     return render_template('verify_otp.html')
 
 @app.route('/logout')
@@ -405,12 +404,9 @@ def admin_add_product():
                 file = request.files[field_name]
                 if file and file.filename and allowed_file(file.filename):
                     result = cloudinary.uploader.upload(
-                        file,
-                        folder='algo_products',
-                        transformation=[
-                            {'width': 800, 'height': 1000,
-                             'crop': 'fill', 'quality': 'auto'}
-                        ]
+                        file, folder='algo_products',
+                        transformation=[{'width': 800, 'height': 1000,
+                                         'crop': 'fill', 'quality': 'auto'}]
                     )
                     return result['secure_url']
             return ''
@@ -433,7 +429,6 @@ def admin_add_product():
         return redirect(url_for('admin'))
     return render_template('admin_product_form.html', product=None)
 
-
 @app.route('/admin/product/edit/<int:pid>', methods=['GET', 'POST'])
 @admin_required
 def admin_edit_product(pid):
@@ -445,19 +440,16 @@ def admin_edit_product(pid):
         category    = request.form['category']
         stock       = int(request.form['stock'])
         is_upcoming = 1 if request.form.get('is_upcoming') else 0
-        is_active   = 1 if request.form.get('is_active') else 0
+        is_active   = 1 if request.form.get('is_active')   else 0
 
         def upload_image(field_name, existing_field):
             if field_name in request.files:
                 file = request.files[field_name]
                 if file and file.filename and allowed_file(file.filename):
                     result = cloudinary.uploader.upload(
-                        file,
-                        folder='algo_products',
-                        transformation=[
-                            {'width': 800, 'height': 1000,
-                             'crop': 'fill', 'quality': 'auto'}
-                        ]
+                        file, folder='algo_products',
+                        transformation=[{'width': 800, 'height': 1000,
+                                         'crop': 'fill', 'quality': 'auto'}]
                     )
                     return result['secure_url']
             return request.form.get(existing_field, '')
@@ -503,15 +495,10 @@ def uploaded_file(filename):
 @app.route('/lookbook')
 def lookbook():
     cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-    cur.execute("""
-        SELECT * FROM lookbook
-        WHERE is_active=1
-        ORDER BY chapter ASC, created_at ASC
-    """)
+    cur.execute("SELECT * FROM lookbook WHERE is_active=1 ORDER BY chapter ASC, created_at ASC")
     images = cur.fetchall()
     cur.close()
 
-    # Group by chapter
     chapters = {}
     for img in images:
         ch = img['chapter']
@@ -519,11 +506,8 @@ def lookbook():
             chapters[ch] = []
         chapters[ch].append(img)
 
-    cart_count = sum(item['qty'] for item in session.get('cart', {}).values()) if session.get('cart') else 0
-    return render_template('lookbook.html', chapters=chapters, cart_count=cart_count)
+    return render_template('lookbook.html', chapters=chapters, cart_count=get_cart_count())
 
-
-# ── ADMIN LOOKBOOK ─────────────────────────────────────────────────
 @app.route('/admin/lookbook')
 @admin_required
 def admin_lookbook():
@@ -532,7 +516,6 @@ def admin_lookbook():
     images = cur.fetchall()
     cur.close()
     return render_template('admin_lookbook.html', images=images)
-
 
 @app.route('/admin/lookbook/add', methods=['POST'])
 @admin_required
@@ -546,11 +529,8 @@ def admin_lookbook_add():
         file = request.files['image']
         if file and allowed_file(file.filename):
             result = cloudinary.uploader.upload(
-                file,
-                folder='algo_lookbook',
-                transformation=[
-                    {'width': 1200, 'quality': 'auto', 'crop': 'limit'}
-                ]
+                file, folder='algo_lookbook',
+                transformation=[{'width': 1200, 'quality': 'auto', 'crop': 'limit'}]
             )
             image_url = result['secure_url']
 
@@ -559,16 +539,12 @@ def admin_lookbook_add():
         return redirect(url_for('admin_lookbook'))
 
     cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-    cur.execute("""
-        INSERT INTO lookbook (title, image_url, chapter, position)
-        VALUES (%s, %s, %s, %s)
-    """, (title, image_url, chapter, position))
+    cur.execute("INSERT INTO lookbook (title, image_url, chapter, position) VALUES (%s, %s, %s, %s)",
+                (title, image_url, chapter, position))
     mysql.connection.commit()
     cur.close()
-
     flash('Lookbook image added!', 'success')
     return redirect(url_for('admin_lookbook'))
-
 
 @app.route('/admin/lookbook/delete/<int:lid>', methods=['POST'])
 @admin_required
@@ -582,8 +558,7 @@ def admin_lookbook_delete(lid):
 # ── API ────────────────────────────────────────────────────────────
 @app.route('/api/cart-count')
 def cart_count_api():
-    cart = session.get('cart', {})
-    return jsonify({'count': sum(i['qty'] for i in cart.values()) if cart else 0})
+    return jsonify({'count': get_cart_count()})
 
 @app.route('/api/new-orders-count')
 @admin_required
@@ -604,7 +579,7 @@ def checkout():
 
     cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
     cart_items = []
-    subtotal = 0
+    subtotal   = 0
 
     for key, item in cart.items():
         pid = item.get('product_id') or key.split('_')[0]
@@ -615,39 +590,44 @@ def checkout():
             subtotal += sub
             cart_items.append({
                 **p,
-                'qty': item['qty'],
-                'size': item.get('size', 'M'),
+                'qty':     item['qty'],
+                'size':    item.get('size', 'M'),
                 'subtotal': sub
             })
-
     cur.close()
 
-    shipping = 0 if subtotal >= 999 else 99
+    if not cart_items:
+        return redirect(url_for('cart'))
+
+    shipping    = 0 if subtotal >= 999 else 99
     grand_total = subtotal + shipping
+    amount      = int(grand_total * 100)   # paise for Razorpay
 
     return render_template('checkout.html',
-        cart_items=cart_items,
-        subtotal=subtotal,
-        grand_total=grand_total,
-        cart_count=0
+        cart_items  = cart_items,
+        subtotal    = subtotal,
+        grand_total = grand_total,
+        amount      = amount,
+        rz_key      = os.getenv('RAZORPAY_KEY_ID', ''),
+        cart_count  = 0,
     )
 
+# ── CREATE ORDER (called by JS before opening Razorpay) ────────────
 @app.route('/create-order', methods=['POST'])
 @login_required
 def create_order():
     try:
-        data = request.get_json()
+        data   = request.get_json()
         amount = int(data.get('amount', 0))
 
         if amount <= 0:
             return jsonify({'error': 'Invalid amount'}), 400
 
         rz_client = get_rz_client()
-
-        rz_order = rz_client.order.create({
-            'amount': amount,
+        rz_order  = rz_client.order.create({
+            'amount':   amount,
             'currency': 'INR',
-            'receipt': f"algo_{session['user_id']}_{int(time.time())}",
+            'receipt':  f"algo_{session['user_id']}_{int(time.time())}",
         })
 
         cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
@@ -659,36 +639,41 @@ def create_order():
         order_id = cur.lastrowid
         cur.close()
 
+        print(f"[ORDER] Created DB order #{order_id}, Razorpay order {rz_order['id']}")
+
         return jsonify({
             'rz_order_id': rz_order['id'],
-            'order_id': order_id
+            'order_id':    order_id
         })
 
     except Exception as e:
-        print("CREATE ORDER ERROR:", e)
+        print(f"[CREATE ORDER ERROR] {e}")
+        import traceback; traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-# ── PLACE ORDER (COD) ──────────────────────────────────────────────
-@app.route('/place-order', methods=['POST'])
+# ── PLACE ORDER (COD only — form POST) ─────────────────────────────
+@app.route('/place_order', methods=['POST'])
 @login_required
 def place_order():
     try:
-        order_id = request.form.get('order_id')
-
+        order_id = request.form.get('order_id', '').strip()
         if not order_id:
             flash("Invalid order", "error")
             return redirect(url_for('cart'))
 
-        name  = request.form.get('name', '').strip()
+        name  = request.form.get('name',  '').strip()
         phone = request.form.get('phone', '').strip()
         addr1 = request.form.get('addr1', '').strip()
-        city  = request.form.get('city', '').strip()
-        pin   = request.form.get('pin', '').strip()
+        addr2 = request.form.get('addr2', '').strip()
+        city  = request.form.get('city',  '').strip()
+        pin   = request.form.get('pin',   '').strip()
         state = request.form.get('state', '').strip()
 
         if not all([name, phone, addr1, city, pin, state]):
-            flash("Fill all fields", "error")
-            return redirect(url_for('cart'))
+            flash("Please fill all required fields", "error")
+            return redirect(url_for('checkout'))
+
+        address = f"{addr1}{', ' + addr2 if addr2 else ''}, {city}, {state} - {pin}"
 
         cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
 
@@ -697,68 +682,62 @@ def place_order():
         order = cur.fetchone()
 
         if not order:
+            cur.close()
             flash("Order not found", "error")
             return redirect(url_for('cart'))
 
-        address = f"{addr1}, {city}, {state} - {pin}"
-
         cur.execute("""
             UPDATE orders
-            SET status='confirmed',
-                payment_method='cod',
-                address=%s,
-                phone=%s
+            SET status='confirmed', payment_method='cod', address=%s, phone=%s
             WHERE id=%s
         """, (address, phone, order_id))
-
         mysql.connection.commit()
 
-        cur.execute("SELECT email FROM users WHERE id=%s",
-                    (session['user_id'],))
+        cur.execute("SELECT email FROM users WHERE id=%s", (session['user_id'],))
         user = cur.fetchone()
         cur.close()
 
         try:
             send_order_notification(
-                order_id=order_id,
-                total=order['total_amount'],
-                payment_method='cod',
-                customer_name=name,
-                customer_email=user['email'],
-                address=address,
-                phone=phone
+                order_id       = order_id,
+                total          = order['total_amount'],
+                payment_method = 'cod',
+                customer_name  = name,
+                customer_email = user['email'],
+                address        = address,
+                phone          = phone
             )
         except Exception as e:
-            print("MAIL ERROR:", e)
+            print(f"[MAIL ERROR] {e}")
 
         session.pop('cart', None)
-
         return redirect(url_for('order_success', order_id=order_id))
 
     except Exception as e:
-        print("PLACE ORDER ERROR:", e)
+        print(f"[PLACE ORDER ERROR] {e}")
+        import traceback; traceback.print_exc()
         return "Server Error", 500
 
-# ── PAYMENT VERIFY ─────────────────────────────────────────────────
+# ── PAYMENT VERIFY (Razorpay callback) ─────────────────────────────
 @app.route('/payment/verify', methods=['POST'])
-def verify_payment():   # ← removed @login_required
+def verify_payment():
     try:
         data = request.get_json()
         if not data:
             return jsonify({'success': False, 'error': 'No data received'}), 400
 
-        rz_order_id   = data.get('razorpay_order_id', '')
+        rz_order_id   = data.get('razorpay_order_id',   '')
         rz_payment_id = data.get('razorpay_payment_id', '')
-        rz_signature  = data.get('razorpay_signature', '')
+        rz_signature  = data.get('razorpay_signature',  '')
         db_order_id   = int(data.get('order_id', 0))
 
         customer_name = data.get('customer_name', 'Customer')
-        phone         = data.get('phone', '')
-        addr1         = data.get('addr1', '')
-        addr2         = data.get('addr2', '')
-        city          = data.get('city', '')
-        pin           = data.get('pin', '')
-        state         = data.get('state', '')
+        phone  = data.get('phone',  '')
+        addr1  = data.get('addr1',  '')
+        addr2  = data.get('addr2',  '')
+        city   = data.get('city',   '')
+        pin    = data.get('pin',    '')
+        state  = data.get('state',  '')
 
         delivery_address = (
             f"{addr1}"
@@ -769,17 +748,12 @@ def verify_payment():   # ← removed @login_required
         # Verify HMAC signature
         msg      = f"{rz_order_id}|{rz_payment_id}".encode()
         secret   = os.getenv('RAZORPAY_KEY_SECRET', '').encode()
-        expected = hmac.new(
-            key=secret,
-            msg=msg,
-            digestmod=hashlib.sha256
-        ).hexdigest()
+        expected = hmac.new(key=secret, msg=msg, digestmod=hashlib.sha256).hexdigest()
 
         if not hmac.compare_digest(expected, rz_signature):
             print(f"[PAYMENT] Signature mismatch for order {db_order_id}")
             return jsonify({'success': False, 'error': 'Invalid signature'}), 400
 
-        # ── Verify order exists in DB ──
         cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
         cur.execute("SELECT * FROM orders WHERE id=%s AND razorpay_order_id=%s",
                     (db_order_id, rz_order_id))
@@ -789,7 +763,6 @@ def verify_payment():   # ← removed @login_required
             cur.close()
             return jsonify({'success': False, 'error': 'Order not found'}), 404
 
-        # Update order
         cur.execute("""
             UPDATE orders SET
                 status='confirmed',
@@ -799,40 +772,36 @@ def verify_payment():   # ← removed @login_required
                 address=%s,
                 phone=%s
             WHERE id=%s
-        """, (rz_payment_id, rz_signature, delivery_address,
-              phone, db_order_id))
+        """, (rz_payment_id, rz_signature, delivery_address, phone, db_order_id))
         mysql.connection.commit()
-        print(f"[PAYMENT] Order {db_order_id} confirmed successfully")
+        print(f"[PAYMENT] Order {db_order_id} confirmed")
 
-        # Get user email
-        cur.execute("SELECT email, name FROM users WHERE id=%s",
-                    (db_order['user_id'],))
+        cur.execute("SELECT email, name FROM users WHERE id=%s", (db_order['user_id'],))
         user = cur.fetchone()
         cur.close()
 
         if user:
-            send_order_notification(
-                order_id       = db_order_id,
-                total          = db_order['total_amount'],
-                payment_method = 'online',
-                customer_name  = customer_name,
-                customer_email = user['email'],
-                address        = delivery_address,
-                phone          = phone
-            )
+            try:
+                send_order_notification(
+                    order_id       = db_order_id,
+                    total          = db_order['total_amount'],
+                    payment_method = 'online',
+                    customer_name  = customer_name,
+                    customer_email = user['email'],
+                    address        = delivery_address,
+                    phone          = phone
+                )
+            except Exception as e:
+                print(f"[MAIL ERROR] {e}")
 
-        # Clear cart if session still active
-        if 'cart' in session:
-            session.pop('cart', None)
-
+        session.pop('cart', None)
         return jsonify({'success': True, 'order_id': db_order_id})
 
     except Exception as e:
-        print(f"[PAYMENT ERROR] {str(e)}")
-        import traceback
-        traceback.print_exc()
+        print(f"[PAYMENT ERROR] {e}")
+        import traceback; traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
-    
+
 # ── RAZORPAY WEBHOOK ───────────────────────────────────────────────
 @app.route('/webhook/razorpay', methods=['POST'])
 def razorpay_webhook():
@@ -840,9 +809,7 @@ def razorpay_webhook():
     payload        = request.get_data()
     received_sig   = request.headers.get('X-Razorpay-Signature', '')
 
-    expected = hmac.new(
-        webhook_secret.encode(), payload, hashlib.sha256
-    ).hexdigest()
+    expected = hmac.new(webhook_secret.encode(), payload, hashlib.sha256).hexdigest()
 
     if not hmac.compare_digest(expected, received_sig):
         return jsonify({'error': 'Invalid webhook'}), 400
