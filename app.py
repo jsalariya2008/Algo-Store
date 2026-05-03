@@ -595,7 +595,7 @@ def new_orders_count():
     return jsonify({'count': count})
 
 # ── CHECKOUT ───────────────────────────────────────────────────────
-@app.route('/checkout', methods=['POST'])
+@app.route('/checkout', methods=['GET'])
 @login_required
 def checkout():
     cart = session.get('cart', {})
@@ -604,7 +604,7 @@ def checkout():
 
     cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
     cart_items = []
-    subtotal   = 0
+    subtotal = 0
 
     for key, item in cart.items():
         pid = item.get('product_id') or key.split('_')[0]
@@ -615,110 +615,129 @@ def checkout():
             subtotal += sub
             cart_items.append({
                 **p,
-                'qty':      item['qty'],
-                'size':     item.get('size', 'M'),
+                'qty': item['qty'],
+                'size': item.get('size', 'M'),
                 'subtotal': sub
             })
 
-    shipping     = 0 if subtotal >= 999 else 99
-    grand_total  = subtotal + shipping
-    amount_paise = int(grand_total * 100)
-
-    rz_client = get_rz_client()
-    rz_order = rz_client.order.create({
-        'amount':   amount_paise,
-        'currency': 'INR',
-        'receipt':  f"algo_{session['user_id']}_{int(time.time())}",
-    })
-
-    cur.execute("""
-        INSERT INTO orders (user_id, total_amount, status, razorpay_order_id)
-        VALUES (%s, %s, 'pending', %s)
-    """, (session['user_id'], grand_total, rz_order['id']))
-    mysql.connection.commit()
-    order_id = cur.lastrowid
     cur.close()
 
+    shipping = 0 if subtotal >= 999 else 99
+    grand_total = subtotal + shipping
+
     return render_template('checkout.html',
-        rz_key      = os.getenv('RAZORPAY_KEY_ID'),
-        rz_order_id = rz_order['id'],
-        amount      = amount_paise,
-        order_id    = order_id,
-        subtotal    = subtotal,
-        grand_total = grand_total,
-        cart_items  = cart_items,
-        cart_count  = 0
+        cart_items=cart_items,
+        subtotal=subtotal,
+        grand_total=grand_total,
+        cart_count=0
     )
+
+@app.route('/create-order', methods=['POST'])
+@login_required
+def create_order():
+    try:
+        data = request.get_json()
+        amount = int(data.get('amount', 0))
+
+        if amount <= 0:
+            return jsonify({'error': 'Invalid amount'}), 400
+
+        rz_client = get_rz_client()
+
+        rz_order = rz_client.order.create({
+            'amount': amount,
+            'currency': 'INR',
+            'receipt': f"algo_{session['user_id']}_{int(time.time())}",
+        })
+
+        cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+        cur.execute("""
+            INSERT INTO orders (user_id, total_amount, status, razorpay_order_id)
+            VALUES (%s, %s, 'pending', %s)
+        """, (session['user_id'], amount / 100, rz_order['id']))
+        mysql.connection.commit()
+        order_id = cur.lastrowid
+        cur.close()
+
+        return jsonify({
+            'rz_order_id': rz_order['id'],
+            'order_id': order_id
+        })
+
+    except Exception as e:
+        print("CREATE ORDER ERROR:", e)
+        return jsonify({'error': str(e)}), 500
 
 # ── PLACE ORDER (COD) ──────────────────────────────────────────────
 @app.route('/place-order', methods=['POST'])
 @login_required
 def place_order():
-    order_id       = request.form.get('order_id')
-    payment_method = request.form.get('payment_method', 'cod')
+    try:
+        order_id = request.form.get('order_id')
 
-    required = {
-        'name':  request.form.get('name', '').strip(),
-        'phone': request.form.get('phone', '').strip(),
-        'addr1': request.form.get('addr1', '').strip(),
-        'city':  request.form.get('city', '').strip(),
-        'pin':   request.form.get('pin', '').strip(),
-        'state': request.form.get('state', '').strip(),
-    }
-
-    for field, value in required.items():
-        if not value:
-            flash('Please fill in all required address fields.', 'error')
+        if not order_id:
+            flash("Invalid order", "error")
             return redirect(url_for('cart'))
 
-    if not re.match(r'^[6-9]\d{9}$', required['phone']):
-        flash('Enter a valid 10-digit mobile number.', 'error')
-        return redirect(url_for('cart'))
+        name  = request.form.get('name', '').strip()
+        phone = request.form.get('phone', '').strip()
+        addr1 = request.form.get('addr1', '').strip()
+        city  = request.form.get('city', '').strip()
+        pin   = request.form.get('pin', '').strip()
+        state = request.form.get('state', '').strip()
 
-    if not re.match(r'^\d{6}$', required['pin']):
-        flash('Enter a valid 6-digit PIN code.', 'error')
-        return redirect(url_for('cart'))
+        if not all([name, phone, addr1, city, pin, state]):
+            flash("Fill all fields", "error")
+            return redirect(url_for('cart'))
 
-    if payment_method != 'cod':
-        return redirect(url_for('cart'))
+        cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
 
-    addr2 = request.form.get('addr2', '').strip()
+        cur.execute("SELECT * FROM orders WHERE id=%s AND user_id=%s",
+                    (order_id, session['user_id']))
+        order = cur.fetchone()
 
-    # Full formatted address
-    delivery_address = (
-        f"{required['addr1']}"
-        f"{', ' + addr2 if addr2 else ''}, "
-        f"{required['city']}, "
-        f"{required['state']} - {required['pin']}"
-    )
+        if not order:
+            flash("Order not found", "error")
+            return redirect(url_for('cart'))
 
-    cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-    cur.execute("""
-        UPDATE orders
-        SET status='confirmed', payment_method='cod',
-            address=%s, phone=%s
-        WHERE id=%s AND user_id=%s
-    """, (delivery_address, required['phone'], order_id, session['user_id']))
-    mysql.connection.commit()
+        address = f"{addr1}, {city}, {state} - {pin}"
 
-    cur.execute("SELECT email FROM users WHERE id=%s", (session['user_id'],))
-    user  = cur.fetchone()
-    cur.execute("SELECT total_amount FROM orders WHERE id=%s", (order_id,))
-    order = cur.fetchone()
-    cur.close()
+        cur.execute("""
+            UPDATE orders
+            SET status='confirmed',
+                payment_method='cod',
+                address=%s,
+                phone=%s
+            WHERE id=%s
+        """, (address, phone, order_id))
 
-    send_order_notification(
-        order_id       = order_id,
-        total          = order['total_amount'],
-        payment_method = 'cod',
-        customer_name  = required['name'],
-        customer_email = user['email'],
-        address        = delivery_address,
-        phone          = required['phone']
-    )
+        mysql.connection.commit()
 
-    session.pop('cart', None)
-    return redirect(url_for('order_success', order_id=order_id))
+        cur.execute("SELECT email FROM users WHERE id=%s",
+                    (session['user_id'],))
+        user = cur.fetchone()
+        cur.close()
+
+        try:
+            send_order_notification(
+                order_id=order_id,
+                total=order['total_amount'],
+                payment_method='cod',
+                customer_name=name,
+                customer_email=user['email'],
+                address=address,
+                phone=phone
+            )
+        except Exception as e:
+            print("MAIL ERROR:", e)
+
+        session.pop('cart', None)
+
+        return redirect(url_for('order_success', order_id=order_id))
+
+    except Exception as e:
+        print("PLACE ORDER ERROR:", e)
+        return "Server Error", 500
 
 # ── PAYMENT VERIFY ─────────────────────────────────────────────────
 @app.route('/payment/verify', methods=['POST'])
