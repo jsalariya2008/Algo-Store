@@ -37,6 +37,17 @@ app.config['UPLOAD_FOLDER'] = 'uploads/products'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
+from datetime import timedelta
+
+app.secret_key = os.getenv('SECRET_KEY')
+
+# ── Keep session alive for 2 hours ─────────────────────────────
+app.permanent_session_lifetime = timedelta(hours=2)
+
+@app.before_request
+def make_session_permanent():
+    session.permanent = True
+
 # ── MySQL ──────────────────────────────────────────────────────────
 app.config['MYSQL_HOST']         = os.getenv('MYSQL_HOST')
 app.config['MYSQL_USER']         = os.getenv('MYSQL_USER')
@@ -711,8 +722,7 @@ def place_order():
 
 # ── PAYMENT VERIFY ─────────────────────────────────────────────────
 @app.route('/payment/verify', methods=['POST'])
-@login_required
-def verify_payment():
+def verify_payment():   # ← removed @login_required
     try:
         data = request.get_json()
         if not data:
@@ -721,9 +731,9 @@ def verify_payment():
         rz_order_id   = data.get('razorpay_order_id', '')
         rz_payment_id = data.get('razorpay_payment_id', '')
         rz_signature  = data.get('razorpay_signature', '')
-        db_order_id   = int(data.get('order_id', 0))  # cast to int
+        db_order_id   = int(data.get('order_id', 0))
 
-        customer_name = data.get('customer_name', session.get('username', 'Customer'))
+        customer_name = data.get('customer_name', 'Customer')
         phone         = data.get('phone', '')
         addr1         = data.get('addr1', '')
         addr2         = data.get('addr2', '')
@@ -737,21 +747,30 @@ def verify_payment():
             f"{city}, {state} - {pin}"
         )
 
-        # ── Verify HMAC signature ──
+        # Verify HMAC signature
         msg      = f"{rz_order_id}|{rz_payment_id}".encode()
         secret   = os.getenv('RAZORPAY_KEY_SECRET', '').encode()
         expected = hmac.new(
-            key      = secret,
-            msg      = msg,
-            digestmod = hashlib.sha256
+            key=secret,
+            msg=msg,
+            digestmod=hashlib.sha256
         ).hexdigest()
 
         if not hmac.compare_digest(expected, rz_signature):
             print(f"[PAYMENT] Signature mismatch for order {db_order_id}")
             return jsonify({'success': False, 'error': 'Invalid signature'}), 400
 
-        # ── Update DB ──
+        # ── Verify order exists in DB ──
         cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+        cur.execute("SELECT * FROM orders WHERE id=%s AND razorpay_order_id=%s",
+                    (db_order_id, rz_order_id))
+        db_order = cur.fetchone()
+
+        if not db_order:
+            cur.close()
+            return jsonify({'success': False, 'error': 'Order not found'}), 404
+
+        # Update order
         cur.execute("""
             UPDATE orders SET
                 status='confirmed',
@@ -760,23 +779,22 @@ def verify_payment():
                 paid_at=NOW(),
                 address=%s,
                 phone=%s
-            WHERE id=%s AND user_id=%s
+            WHERE id=%s
         """, (rz_payment_id, rz_signature, delivery_address,
-              phone, db_order_id, session['user_id']))
+              phone, db_order_id))
         mysql.connection.commit()
-        print(f"[PAYMENT] Order {db_order_id} confirmed")
+        print(f"[PAYMENT] Order {db_order_id} confirmed successfully")
 
-        # ── Get user and order for email ──
-        cur.execute("SELECT email FROM users WHERE id=%s", (session['user_id'],))
+        # Get user email
+        cur.execute("SELECT email, name FROM users WHERE id=%s",
+                    (db_order['user_id'],))
         user = cur.fetchone()
-        cur.execute("SELECT total_amount FROM orders WHERE id=%s", (db_order_id,))
-        order = cur.fetchone()
         cur.close()
 
-        if user and order:
+        if user:
             send_order_notification(
                 order_id       = db_order_id,
-                total          = order['total_amount'],
+                total          = db_order['total_amount'],
                 payment_method = 'online',
                 customer_name  = customer_name,
                 customer_email = user['email'],
@@ -784,13 +802,18 @@ def verify_payment():
                 phone          = phone
             )
 
-        session.pop('cart', None)
+        # Clear cart if session still active
+        if 'cart' in session:
+            session.pop('cart', None)
+
         return jsonify({'success': True, 'order_id': db_order_id})
 
     except Exception as e:
         print(f"[PAYMENT ERROR] {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
-
+    
 # ── RAZORPAY WEBHOOK ───────────────────────────────────────────────
 @app.route('/webhook/razorpay', methods=['POST'])
 def razorpay_webhook():

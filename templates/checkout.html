@@ -384,10 +384,15 @@ function placeOrder() {
         })
       })
       .then(r => {
-        console.log('Status:', r.status);
-        if (!r.ok) return r.text().then(t => { throw new Error(t); });
-        return r.json();
-      })
+    console.log('Status:', r.status);
+    // If redirected to login, session expired
+    if (r.redirected || r.url.includes('/login')) {
+        window.location.href = '/login';
+        throw new Error('Session expired — please log in again');
+    }
+    if (!r.ok) return r.text().then(t => { throw new Error('Server error ' + r.status + ': ' + t.substring(0, 200)); });
+    return r.json();
+})
       .then(data => {
         console.log('Response:', data);
         if (data.success) {
