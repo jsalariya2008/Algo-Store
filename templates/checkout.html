@@ -752,6 +752,16 @@ async function createOrder(amountPaise) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ amount: amountPaise })
   });
+  // Session expired — server returns 401 JSON instead of redirecting
+  if (res.status === 401) {
+    window.location.href = '/login';
+    throw new Error('Session expired. Redirecting to login...');
+  }
+  // Redirect means session expired and login_required sent a 302
+  if (res.redirected || res.url.includes('/login')) {
+    window.location.href = '/login';
+    throw new Error('Session expired. Redirecting to login...');
+  }
   if (!res.ok) {
     const txt = await res.text();
     throw new Error('Order creation failed: ' + txt.substring(0, 120));
