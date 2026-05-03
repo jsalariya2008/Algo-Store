@@ -574,7 +574,7 @@ def new_orders_count():
     return jsonify({'count': count})
 
 # ── CHECKOUT ───────────────────────────────────────────────────────
-@app.route('/checkout', methods=['GET'])
+@app.route('/checkout', methods=['GET', 'POST' ])
 @login_required
 def checkout():
     cart = session.get('cart', {})
