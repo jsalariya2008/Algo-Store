@@ -615,7 +615,7 @@ const btnNotes  = {
   cod:  'Pay cash when your order arrives'
 };
 
-// ── Helper: set button state ──────────────────────────────────────
+// ================= BUTTON UI =================
 function setBtnText(text, sub) {
   document.getElementById('btnText').textContent   = text;
   document.getElementById('btnMethod').textContent = sub || ('via ' + btnLabels[currentMethod]);
@@ -626,44 +626,28 @@ function resetBtn() {
   document.getElementById('placeOrderBtn').disabled = false;
 }
 
-// ── Select payment method ─────────────────────────────────────────
+// ================= PAYMENT METHOD =================
 function selectMethod(m) {
   currentMethod = m;
+
   ['upi','card','nb','cod'].forEach(id => {
     document.getElementById('opt-'+id).classList.toggle('selected', id===m);
     document.getElementById('body-'+id).classList.toggle('open', id===m);
   });
+
   setBtnText('Place Order', 'via ' + btnLabels[m]);
-  document.getElementById('methodNote').textContent   = btnNotes[m];
+  document.getElementById('methodNote').textContent = btnNotes[m];
   document.getElementById('paymentMethodInput').value = m;
 
   const codRow = document.getElementById('codFeeRow');
   if (codRow) {
     codRow.style.display = m === 'cod' ? 'flex' : 'none';
     document.getElementById('totalDisplay').textContent =
-      '₹' + (m === 'cod' ? BASE + 25 : BASE).toLocaleString('en-IN');
+      '₹' + (m === 'cod' ? BASE + 25 : BASE);
   }
 }
 
-function pickApp(btn, app) {
-  document.querySelectorAll('.app-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('upiId').placeholder = app + ' UPI ID';
-}
-
-function verifyUPI() {
-  const val = document.getElementById('upiId').value.trim();
-  const btn = document.getElementById('upiVerifyBtn');
-  if (!val) { document.getElementById('upiId').focus(); return; }
-  btn.textContent = 'Checking…';
-  setTimeout(() => {
-    const ok = val.includes('@');
-    btn.textContent      = ok ? '✓ Valid' : 'Invalid';
-    btn.style.background = ok ? '#166534' : '#991b1b';
-    setTimeout(() => { btn.textContent = 'Verify'; btn.style.background = ''; }, 2000);
-  }, 700);
-}
-
+// ================= ADDRESS =================
 function getAddress() {
   return {
     name:  document.getElementById('field-name').value.trim(),
@@ -678,45 +662,43 @@ function getAddress() {
 
 function validateAddress() {
   const required = ['field-name','field-phone','field-addr1','field-city','field-pin','field-state'];
-  let firstError = null;
+  let ok = true;
+
   required.forEach(id => {
     const el = document.getElementById(id);
     if (!el.value.trim()) {
       el.classList.add('input-error');
-      if (!firstError) firstError = el;
+      ok = false;
     } else {
       el.classList.remove('input-error');
     }
   });
-  if (firstError) {
-    firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    firstError.focus();
-    showToast('Please fill in all required fields');
-    return false;
-  }
-  return true;
+
+  if (!ok) showToast('Please fill all required fields');
+  return ok;
 }
 
-// ── Main place order ──────────────────────────────────────────────
+// ================= MAIN ORDER FUNCTION =================
 async function placeOrder() {
+
   if (!validateAddress()) return;
 
-  const btn  = document.getElementById('placeOrderBtn');
+  const btn = document.getElementById('placeOrderBtn');
   const addr = getAddress();
   btn.disabled = true;
 
-  // ── COD flow ──────────────────────────────────────────────────
+  // ================= COD FLOW =================
   if (currentMethod === 'cod') {
-    setBtnText('Creating order...');
-
     try {
-      const res  = await fetch('/create-order', {
-        method:  'POST',
+      setBtnText('Creating order...');
+
+      const res = await fetch('/create-order', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ amount: AMOUNT })
+        body: JSON.stringify({ amount: AMOUNT })
       });
+
       const data = await res.json();
-      if (data.error) throw new Error(data.error);
 
       document.getElementById('input-order-id').value = data.order_id;
       document.getElementById('input-name').value     = addr.name;
@@ -727,142 +709,104 @@ async function placeOrder() {
       document.getElementById('input-pin').value      = addr.pin;
       document.getElementById('input-state').value    = addr.state;
 
-      setBtnText('Placing Order...');
       document.getElementById('checkoutForm').submit();
 
     } catch(e) {
-      console.error('COD order error:', e);
-      showToast('Error creating order: ' + e.message);
+      console.error(e);
+      showToast('Error creating order');
       resetBtn();
     }
+
     return;
   }
 
-  // ── Online payment flow — Step 1: create order ────────────────
-  setBtnText('Creating order...');
-
+  // ================= ONLINE PAYMENT =================
   let rzOrderId, dbOrderId;
 
   try {
-    const res  = await fetch('/create-order', {
-      method:  'POST',
+    setBtnText('Creating order...');
+
+    const res = await fetch('/create-order', {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ amount: AMOUNT })
+      body: JSON.stringify({ amount: AMOUNT })
     });
+
     const data = await res.json();
-    if (data.error) throw new Error(data.error);
 
     rzOrderId = data.rz_order_id;
     dbOrderId = data.order_id;
 
-    // Show the order ID in the header
-    document.getElementById('displayOrderId').textContent = dbOrderId;
-    console.log('[ORDER] Created:', dbOrderId, rzOrderId);
-
   } catch(e) {
-    console.error('Create order error:', e);
-    showToast('Could not create order: ' + e.message);
+    console.error(e);
+    showToast('Failed to create order');
     resetBtn();
     return;
   }
 
-  // ── Step 2: open Razorpay ─────────────────────────────────────
-  setBtnText('Opening payment...');
-
+  // ================= RAZORPAY =================
   const options = {
-    key:         RZ_KEY,
-    amount:      AMOUNT,
-    currency:    'INR',
-    name:        'ALGO WEAR',
+    key: RZ_KEY,
+    amount: AMOUNT,
+    currency: 'INR',
+    name: 'ALGO WEAR',
     description: 'Order #' + dbOrderId,
-    order_id:    rzOrderId,
-    theme:       { color: '#0a0a0a' },
-    prefill: {
-      name:    addr.name,
-      contact: addr.phone,
-    },
+    order_id: rzOrderId,
 
     handler: async function(response) {
 
-  setBtnText('Verifying...');
+      try {
+        const res = await fetch('/payment/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+            order_id: dbOrderId,
 
-  console.log("dbOrderId:", dbOrderId);
+            customer_name: addr.name,
+            phone: addr.phone,
+            addr1: addr.addr1,
+            addr2: addr.addr2,
+            city: addr.city,
+            pin: addr.pin,
+            state: addr.state
+          })
+        });
 
-  try {
-    const res = await fetch('/payment/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        razorpay_order_id: response.razorpay_order_id,
-        razorpay_payment_id: response.razorpay_payment_id,
-        razorpay_signature: response.razorpay_signature,
+        let data;
+        try {
+          data = await res.json();
+        } catch {
+          window.location.href = '/order/success/' + dbOrderId;
+          return;
+        }
 
-        order_id: Number(dbOrderId),
+        if (data.success) {
+          window.location.href = '/order/success/' + data.order_id;
+        } else {
+          showToast('Verification failed');
+          resetBtn();
+        }
 
-        customer_name: addr.name || "Customer",
-        phone: addr.phone || "",
-        addr1: addr.addr1 || "",
-        addr2: addr.addr2 || "",
-        city: addr.city || "",
-        pin: addr.pin || "",
-        state: addr.state || "",
-      })
-    });
-
-    console.log("Verify status:", res.status);
-
-    if (res.status === 401) {
-      window.location.href = '/order/success/' + dbOrderId;
-      return;
+      } catch(e) {
+        console.error(e);
+        alert('Payment done but verification failed. Contact support.');
+      }
     }
+  };
 
-    let data;
-    try {
-      data = await res.json();
-    } catch (err) {
-      console.error("Non-JSON response", err);
-      window.location.href = '/order/success/' + dbOrderId;
-      return;
-    }
-
-    console.log("Verify response:", data);
-
-    if (data.success) {
-      window.location.href = '/order/success/' + data.order_id;
-    } else {
-      showToast('Verification failed — ' + (data.error || 'Unknown error'));
-      resetBtn();
-    }
-
-  } catch(e) {
-    console.error('Verify error:', e);
-    setBtnText('Contact Support');
-    alert('Payment received but verification failed.\nOrder #' + dbOrderId + '\nContact support.');
-  }
-}
   const rzp = new Razorpay(options);
-  rzp.on('payment.failed', function(response) {
-    resetBtn();
-    showToast('Payment failed: ' + response.error.description);
-  });
   rzp.open();
 }
 
-// ── Input error clear on type ─────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('.co-input').forEach(input => {
-    input.addEventListener('input', function() {
-      this.classList.remove('input-error');
-    });
-  });
-});
-
+// ================= TOAST =================
 function showToast(msg) {
   const t = document.getElementById('toast');
-  if (!t) return;
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3500);
+  setTimeout(() => t.classList.remove('show'), 3000);
 }
 </script>
 {% endblock %}
