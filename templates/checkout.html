@@ -783,62 +783,63 @@ async function placeOrder() {
     },
 
     handler: async function(response) {
-      // ── Step 3: verify payment ──────────────────────────────
-      setBtnText('Verifying...');
 
-      try {
-        const res = await fetch('/payment/verify', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({
-            razorpay_order_id:   response.razorpay_order_id,
-            razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_signature:  response.razorpay_signature,
-            order_id:      dbOrderId,
-            customer_name: addr.name,
-            phone:  addr.phone,
-            addr1:  addr.addr1,
-            addr2:  addr.addr2,
-            city:   addr.city,
-            pin:    addr.pin,
-            state:  addr.state,
-          })
-        });
+  setBtnText('Verifying...');
 
-        console.log('Verify status:', res.status);
+  console.log("dbOrderId:", dbOrderId);
 
-        // ── FIX: Only handle true 401, remove res.redirected check ──
-        if (res.status === 401) {
-          // Session expired but payment was captured — go to success
-          window.location.href = '/order/success/' + dbOrderId;
-          return;
-        }
+  try {
+    const res = await fetch('/payment/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        razorpay_order_id: response.razorpay_order_id,
+        razorpay_payment_id: response.razorpay_payment_id,
+        razorpay_signature: response.razorpay_signature,
 
-        const data = await res.json();
-        console.log('Verify response:', data);
+        order_id: Number(dbOrderId),
 
-        if (data.success) {
-          window.location.href = '/order/success/' + data.order_id;
-        } else {
-          showToast('Verification failed — ' + (data.error || 'Unknown error'));
-          resetBtn();
-        }
+        customer_name: addr.name || "Customer",
+        phone: addr.phone || "",
+        addr1: addr.addr1 || "",
+        addr2: addr.addr2 || "",
+        city: addr.city || "",
+        pin: addr.pin || "",
+        state: addr.state || "",
+      })
+    });
 
-      } catch(e) {
-        console.error('Verify error:', e);
-        // Payment was taken — don't reset, show message with order ID
-        setBtnText('Contact Support');
-        alert('Payment received but verification failed.\nOrder #' + dbOrderId + '\nPlease contact support — do NOT pay again.');
-      }
-    },
+    console.log("Verify status:", res.status);
 
-    modal: {
-      ondismiss: function() {
-        resetBtn();
-      }
+    if (res.status === 401) {
+      window.location.href = '/order/success/' + dbOrderId;
+      return;
     }
-  };
 
+    let data;
+    try {
+      data = await res.json();
+    } catch (err) {
+      console.error("Non-JSON response", err);
+      window.location.href = '/order/success/' + dbOrderId;
+      return;
+    }
+
+    console.log("Verify response:", data);
+
+    if (data.success) {
+      window.location.href = '/order/success/' + data.order_id;
+    } else {
+      showToast('Verification failed — ' + (data.error || 'Unknown error'));
+      resetBtn();
+    }
+
+  } catch(e) {
+    console.error('Verify error:', e);
+    setBtnText('Contact Support');
+    alert('Payment received but verification failed.\nOrder #' + dbOrderId + '\nContact support.');
+  }
+}
   const rzp = new Razorpay(options);
   rzp.on('payment.failed', function(response) {
     resetBtn();
