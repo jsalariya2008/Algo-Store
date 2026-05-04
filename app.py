@@ -79,10 +79,8 @@ def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if 'user_id' not in session:
-            # Return JSON for AJAX/fetch requests instead of redirecting
-            # A redirect causes fetch to follow it and POST to /login → 405
-            if request.is_json or request.headers.get('Content-Type') == 'application/json':
-                return jsonify({'error': 'session_expired', 'redirect': '/login'}), 401
+            if request.is_json or request.headers.get('Content-Type','').startswith('application/json'):
+                return jsonify({'success': False, 'error': 'session_expired'}), 401
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated
@@ -833,7 +831,6 @@ def razorpay_webhook():
 
 # ── ORDER SUCCESS ──────────────────────────────────────────────────
 @app.route('/order/success/<int:order_id>')
-@login_required
 def order_success(order_id):
     cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
     cur.execute("SELECT * FROM orders WHERE id=%s AND user_id=%s",
