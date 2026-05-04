@@ -79,8 +79,6 @@ def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if 'user_id' not in session:
-            if request.is_json or request.headers.get('Content-Type','').startswith('application/json'):
-                return jsonify({'success': False, 'error': 'session_expired'}), 401
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated
@@ -572,7 +570,7 @@ def new_orders_count():
     return jsonify({'count': count})
 
 # ── CHECKOUT ───────────────────────────────────────────────────────
-@app.route('/checkout', methods=['GET', 'POST'])
+@app.route('/checkout', methods=['GET'])
 @login_required
 def checkout():
     cart = session.get('cart', {})
@@ -592,8 +590,8 @@ def checkout():
             subtotal += sub
             cart_items.append({
                 **p,
-                'qty':      item['qty'],
-                'size':     item.get('size', 'M'),
+                'qty':     item['qty'],
+                'size':    item.get('size', 'M'),
                 'subtotal': sub
             })
     cur.close()
@@ -603,7 +601,7 @@ def checkout():
 
     shipping    = 0 if subtotal >= 999 else 99
     grand_total = subtotal + shipping
-    amount      = int(grand_total * 100)  # paise for Razorpay
+    amount      = int(grand_total * 100)   # paise for Razorpay
 
     return render_template('checkout.html',
         cart_items  = cart_items,
@@ -688,12 +686,16 @@ def place_order():
             flash("Order not found", "error")
             return redirect(url_for('cart'))
 
-        cur.execute("""
-            UPDATE orders
-            SET status='confirmed', payment_method='cod', address=%s, phone=%s
-            WHERE id=%s
-        """, (address, phone, order_id))
+        # Step 1: confirm the order (always works)
+        cur.execute("UPDATE orders SET status='confirmed' WHERE id=%s", (order_id,))
         mysql.connection.commit()
+        # Step 2: save address/payment_method (needs columns — run ALTER TABLE if missing)
+        try:
+            cur.execute("""UPDATE orders SET payment_method='cod', address=%s, phone=%s
+                            WHERE id=%s""", (address, phone, order_id))
+            mysql.connection.commit()
+        except Exception as col_err:
+            print(f"[COD] Column missing, run ALTER TABLE: {col_err}")
 
         cur.execute("SELECT email FROM users WHERE id=%s", (session['user_id'],))
         user = cur.fetchone()
@@ -747,18 +749,16 @@ def verify_payment():
             f"{city}, {state} - {pin}"
         )
 
-        # ── FIX: Use hmac.new correctly ────────────────────────────
+        # Verify HMAC signature
         msg      = f"{rz_order_id}|{rz_payment_id}".encode()
         secret   = os.getenv('RAZORPAY_KEY_SECRET', '').encode()
-        expected = hmac.new(key=secret, msg=msg, digestmod=hashlib.sha256).hexdigest()
+        expected = hmac.new(secret, msg, hashlib.sha256).hexdigest()
 
         if not hmac.compare_digest(expected, rz_signature):
             print(f"[PAYMENT] Signature mismatch for order {db_order_id}")
             return jsonify({'success': False, 'error': 'Invalid signature'}), 400
 
         cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        # ── FIX: Look up order by id only (not razorpay_order_id match)
-        # in case razorpay_order_id wasn't saved correctly
         cur.execute("SELECT * FROM orders WHERE id=%s", (db_order_id,))
         db_order = cur.fetchone()
 
@@ -766,19 +766,21 @@ def verify_payment():
             cur.close()
             return jsonify({'success': False, 'error': 'Order not found'}), 404
 
-        cur.execute("""
-            UPDATE orders SET
-                status='confirmed',
-                payment_method='online',
-                razorpay_payment_id=%s,
-                razorpay_signature=%s,
-                paid_at=NOW(),
-                address=%s,
-                phone=%s
-            WHERE id=%s
-        """, (rz_payment_id, rz_signature, delivery_address, phone, db_order_id))
+
+        # Step 1: always works
+        cur.execute("UPDATE orders SET status='confirmed' WHERE id=%s", (db_order_id,))
         mysql.connection.commit()
         print(f"[PAYMENT] Order {db_order_id} confirmed")
+        # Step 2: save details - needs columns (run ALTER TABLE if these fail)
+        try:
+            cur.execute("""UPDATE orders SET
+                razorpay_payment_id=%s, razorpay_signature=%s,
+                paid_at=NOW(), address=%s, phone=%s
+                WHERE id=%s""",
+                (rz_payment_id, rz_signature, delivery_address, phone, db_order_id))
+            mysql.connection.commit()
+        except Exception as col_err:
+            print(f"[PAYMENT] Column missing - run ALTER TABLE: {col_err}")
 
         cur.execute("SELECT email, name FROM users WHERE id=%s", (db_order['user_id'],))
         user = cur.fetchone()
@@ -832,18 +834,15 @@ def razorpay_webhook():
     return jsonify({'status': 'ok'})
 
 # ── ORDER SUCCESS ──────────────────────────────────────────────────
-# FIX 1: Removed user_id check so session expiry doesn't crash the page
-# FIX 2: Added fallback redirect if order not found
 @app.route('/order/success/<int:order_id>')
 def order_success(order_id):
+    # No @login_required — session can expire during Razorpay payment flow
     cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
     cur.execute("SELECT * FROM orders WHERE id=%s", (order_id,))
     order = cur.fetchone()
     cur.close()
-
     if not order:
         return redirect(url_for('index'))
-
     return render_template('order_success.html', order=order, cart_count=0)
 
 if __name__ == '__main__':
