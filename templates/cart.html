@@ -44,11 +44,7 @@
       </div>
       {% endfor %}
     </div>
-<form method="POST" action="{{ url_for('checkout') }}">
-  <button type="submit" class="btn btn--primary btn--full">
-    Proceed to Checkout
-  </button>
-</form>
+
     <div class="cart-summary">
       <div class="cart-summary__inner">
         <h2 class="cart-summary__title">Order Summary</h2>
@@ -66,7 +62,7 @@
           <span id="cartTotal">₹{{ "%.0f"|format(total + (0 if total >= 999 else 99)) }}</span>
         </div>
         {% if session.get('user_id') %}
-          <a href="#" class="btn btn--primary btn--full cart-summary__checkout">Proceed to Checkout</a>
+          <a href="{{ url_for('checkout') }}" class="btn btn--primary btn--full cart-summary__checkout">Proceed to Checkout</a>
         {% else %}
           <a href="{{ url_for('login') }}" class="btn btn--primary btn--full cart-summary__checkout">Login to Checkout</a>
         {% endif %}
