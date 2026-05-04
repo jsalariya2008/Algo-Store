@@ -179,7 +179,7 @@
 
       <button class="place-btn" id="placeOrderBtn" onclick="placeOrder()">
         <span id="btnText">Place Order</span>
-        <span class="btn-method" id="btnMethod">via UPI</span>
+        <span id="btnMethod">via UPI</span>
       </button>
 
       <p class="summary-note" id="methodNote">UPI payment processed via Razorpay</p>
@@ -201,8 +201,8 @@
 
 <!-- Hidden form for COD -->
 <form id="checkoutForm" method="POST" action="{{ url_for('place_order') }}" style="display:none;">
-  <input type="hidden" name="payment_method" id="paymentMethodInput" value="upi">
-  <input type="hidden" name="order_id"       id="input-order-id"    value="">
+  <input type="hidden" name="payment_method" id="paymentMethodInput" value="cod">
+  <input type="hidden" name="order_id"       id="input-order-id">
   <input type="hidden" name="name"           id="input-name">
   <input type="hidden" name="phone"          id="input-phone">
   <input type="hidden" name="addr1"          id="input-addr1">
@@ -216,7 +216,6 @@
 <div id="toast" class="toast"></div>
 
 <style>
-/* ── Tokens ─────────────────────────────────────────── */
 :root {
   --ink:        #1a1714;
   --cream:      #fdfaf6;
@@ -228,8 +227,6 @@
   --panel:      #1a1714;
   --panel-mute: rgba(240,230,211,.38);
 }
-
-/* ── Page ────────────────────────────────────────────── */
 .co-page {
   padding: calc(70px + 48px) clamp(20px,5vw,60px) 100px;
   max-width: 1160px;
@@ -251,16 +248,12 @@
   text-transform: uppercase;
   margin: 0;
 }
-
-/* ── Layout grid ─────────────────────────────────────── */
 .co-grid {
   display: grid;
   grid-template-columns: 1fr 340px;
   gap: 28px;
   align-items: start;
 }
-
-/* ── Section ─────────────────────────────────────────── */
 .co-section {
   background: var(--cream);
   border: 1px solid var(--border);
@@ -285,8 +278,6 @@
   color: var(--red);
   line-height: 1;
 }
-
-/* ── Fields ──────────────────────────────────────────── */
 .field-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -320,8 +311,6 @@
 }
 .co-input:focus { border-color: var(--red); }
 .co-input.input-error { border-color: var(--red); background: var(--red-light); }
-
-/* ── Payment options ─────────────────────────────────── */
 .pay-opt {
   display: flex;
   align-items: center;
@@ -372,7 +361,6 @@
 }
 .pay-badge.green { background: #f0fdf4; color: #166534; }
 .pay-badge.amber { background: #fffbeb; color: #92400e; }
-
 .pay-body {
   overflow: hidden;
   max-height: 0;
@@ -384,7 +372,6 @@
   margin-bottom: 0;
 }
 .pay-body.open { max-height: 240px; padding: 16px; }
-
 .upi-row {
   display: flex;
   gap: 8px;
@@ -418,7 +405,6 @@
   transition: all .2s;
 }
 .app-btn:hover, .app-btn.active { background: var(--ink); color: var(--gold); border-color: var(--ink); }
-
 .cod-note {
   font-size: .9rem;
   color: var(--muted);
@@ -434,8 +420,6 @@
   padding: 5px 10px;
   display: inline-block;
 }
-
-/* ── Summary panel ───────────────────────────────────── */
 .co-summary {
   background: var(--panel);
   padding: 28px;
@@ -502,8 +486,6 @@
   color: var(--gold);
   font-weight: 600;
 }
-
-/* ── Place order button ───────────────────────────────── */
 .place-btn {
   width: 100%;
   margin-top: 22px;
@@ -558,8 +540,6 @@
   text-transform: uppercase;
 }
 .trust-item svg { flex-shrink: 0; opacity: .5; }
-
-/* ── Toast ───────────────────────────────────────────── */
 .toast {
   position: fixed;
   bottom: 28px;
@@ -582,8 +562,6 @@
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
-
-/* ── Loading overlay ─────────────────────────────────── */
 .co-overlay {
   position: fixed;
   inset: 0;
@@ -605,16 +583,9 @@
   animation: spin .8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-
-/* ── Responsive ──────────────────────────────────────── */
 @media (max-width: 800px) {
-  .co-grid {
-    grid-template-columns: 1fr;
-  }
-  .co-summary {
-    position: static;
-    order: -1;
-  }
+  .co-grid { grid-template-columns: 1fr; }
+  .co-summary { position: static; order: -1; }
 }
 @media (max-width: 500px) {
   .field-row { grid-template-columns: 1fr; }
@@ -630,11 +601,12 @@
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
 <script>
-const RZ_KEY  = '{{ rz_key }}';
-const AMOUNT  = {{ amount }};
-const BASE    = {{ grand_total | int }};
+const RZ_KEY = '{{ rz_key }}';
+const AMOUNT = {{ amount }};
+const BASE   = {{ grand_total | int }};
 
 let currentMethod = 'upi';
+
 const btnLabels = { upi:'UPI', card:'Card', nb:'Net Banking', cod:'Cash on Delivery' };
 const btnNotes  = {
   upi:  'UPI payment processed via Razorpay',
@@ -643,20 +615,33 @@ const btnNotes  = {
   cod:  'Pay cash when your order arrives'
 };
 
+// ── Helper: set button state ──────────────────────────────────────
+function setBtnText(text, sub) {
+  document.getElementById('btnText').textContent   = text;
+  document.getElementById('btnMethod').textContent = sub || ('via ' + btnLabels[currentMethod]);
+}
+
+function resetBtn() {
+  setBtnText('Place Order', 'via ' + btnLabels[currentMethod]);
+  document.getElementById('placeOrderBtn').disabled = false;
+}
+
+// ── Select payment method ─────────────────────────────────────────
 function selectMethod(m) {
   currentMethod = m;
   ['upi','card','nb','cod'].forEach(id => {
     document.getElementById('opt-'+id).classList.toggle('selected', id===m);
     document.getElementById('body-'+id).classList.toggle('open', id===m);
   });
-  document.getElementById('placeOrderBtn').textContent = 'Place Order — ' + btnLabels[m];
-  document.getElementById('methodNote').textContent    = btnNotes[m];
-  document.getElementById('paymentMethodInput').value  = m;
+  setBtnText('Place Order', 'via ' + btnLabels[m]);
+  document.getElementById('methodNote').textContent   = btnNotes[m];
+  document.getElementById('paymentMethodInput').value = m;
+
   const codRow = document.getElementById('codFeeRow');
   if (codRow) {
-    codRow.style.display = m==='cod' ? 'flex' : 'none';
+    codRow.style.display = m === 'cod' ? 'flex' : 'none';
     document.getElementById('totalDisplay').textContent =
-      '₹' + (m==='cod' ? BASE+25 : BASE).toLocaleString('en-IN');
+      '₹' + (m === 'cod' ? BASE + 25 : BASE).toLocaleString('en-IN');
   }
 }
 
@@ -673,9 +658,9 @@ function verifyUPI() {
   btn.textContent = 'Checking…';
   setTimeout(() => {
     const ok = val.includes('@');
-    btn.textContent = ok ? '✓ Valid' : 'Invalid';
+    btn.textContent      = ok ? '✓ Valid' : 'Invalid';
     btn.style.background = ok ? '#166534' : '#991b1b';
-    setTimeout(() => { btn.textContent = 'Verify'; btn.style.background = '#1a1714'; }, 2000);
+    setTimeout(() => { btn.textContent = 'Verify'; btn.style.background = ''; }, 2000);
   }, 700);
 }
 
@@ -684,7 +669,7 @@ function getAddress() {
     name:  document.getElementById('field-name').value.trim(),
     phone: document.getElementById('field-phone').value.trim(),
     addr1: document.getElementById('field-addr1').value.trim(),
-    addr2: (document.getElementById('field-addr2') || {value:''}).value.trim(),
+    addr2: document.getElementById('field-addr2').value.trim(),
     city:  document.getElementById('field-city').value.trim(),
     pin:   document.getElementById('field-pin').value.trim(),
     state: document.getElementById('field-state').value.trim(),
@@ -712,17 +697,17 @@ function validateAddress() {
   return true;
 }
 
+// ── Main place order ──────────────────────────────────────────────
 async function placeOrder() {
   if (!validateAddress()) return;
 
-  const btn = document.getElementById('placeOrderBtn');
+  const btn  = document.getElementById('placeOrderBtn');
   const addr = getAddress();
+  btn.disabled = true;
 
-  // ── COD — copy address to hidden form and submit ──
+  // ── COD flow ──────────────────────────────────────────────────
   if (currentMethod === 'cod') {
-    // First create the order in DB
-    btn.textContent = 'Creating order...';
-    btn.disabled = true;
+    setBtnText('Creating order...');
 
     try {
       const res  = await fetch('/create-order', {
@@ -731,10 +716,8 @@ async function placeOrder() {
         body:    JSON.stringify({ amount: AMOUNT })
       });
       const data = await res.json();
-
       if (data.error) throw new Error(data.error);
 
-      // Fill hidden form and submit
       document.getElementById('input-order-id').value = data.order_id;
       document.getElementById('input-name').value     = addr.name;
       document.getElementById('input-phone').value    = addr.phone;
@@ -744,21 +727,19 @@ async function placeOrder() {
       document.getElementById('input-pin').value      = addr.pin;
       document.getElementById('input-state').value    = addr.state;
 
-      btn.textContent = 'Placing Order...';
+      setBtnText('Placing Order...');
       document.getElementById('checkoutForm').submit();
 
     } catch(e) {
       console.error('COD order error:', e);
-      btn.textContent = 'Place Order — COD';
-      btn.disabled = false;
       showToast('Error creating order: ' + e.message);
+      resetBtn();
     }
     return;
   }
 
-  // ── Online payment — step 1: create order ──
-  btn.textContent = 'Creating order...';
-  btn.disabled = true;
+  // ── Online payment flow — Step 1: create order ────────────────
+  setBtnText('Creating order...');
 
   let rzOrderId, dbOrderId;
 
@@ -769,23 +750,24 @@ async function placeOrder() {
       body:    JSON.stringify({ amount: AMOUNT })
     });
     const data = await res.json();
-
     if (data.error) throw new Error(data.error);
 
     rzOrderId = data.rz_order_id;
     dbOrderId = data.order_id;
+
+    // Show the order ID in the header
+    document.getElementById('displayOrderId').textContent = dbOrderId;
     console.log('[ORDER] Created:', dbOrderId, rzOrderId);
 
   } catch(e) {
     console.error('Create order error:', e);
-    btn.textContent = 'Place Order — ' + btnLabels[currentMethod];
-    btn.disabled = false;
     showToast('Could not create order: ' + e.message);
+    resetBtn();
     return;
   }
 
-  // ── Step 2: open Razorpay ──
-  btn.textContent = 'Opening payment...';
+  // ── Step 2: open Razorpay ─────────────────────────────────────
+  setBtnText('Opening payment...');
 
   const options = {
     key:         RZ_KEY,
@@ -799,17 +781,20 @@ async function placeOrder() {
       name:    addr.name,
       contact: addr.phone,
     },
+
     handler: async function(response) {
-      btn.textContent = 'Verifying payment...';
+      // ── Step 3: verify payment ──────────────────────────────
+      setBtnText('Verifying...');
+
       try {
-        const res  = await fetch('/payment/verify', {
+        const res = await fetch('/payment/verify', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({
             razorpay_order_id:   response.razorpay_order_id,
             razorpay_payment_id: response.razorpay_payment_id,
             razorpay_signature:  response.razorpay_signature,
-            order_id:     dbOrderId,
+            order_id:      dbOrderId,
             customer_name: addr.name,
             phone:  addr.phone,
             addr1:  addr.addr1,
@@ -821,40 +806,48 @@ async function placeOrder() {
         });
 
         console.log('Verify status:', res.status);
+
+        // ── FIX: Only handle true 401, remove res.redirected check ──
+        if (res.status === 401) {
+          // Session expired but payment was captured — go to success
+          window.location.href = '/order/success/' + dbOrderId;
+          return;
+        }
+
         const data = await res.json();
         console.log('Verify response:', data);
 
         if (data.success) {
           window.location.href = '/order/success/' + data.order_id;
         } else {
-          btn.textContent = 'Place Order — ' + btnLabels[currentMethod];
-          btn.disabled = false;
-          alert('Verification failed: ' + (data.error || 'Unknown') + '\nOrder #' + dbOrderId + ' — do not pay again.');
+          showToast('Verification failed — ' + (data.error || 'Unknown error'));
+          resetBtn();
         }
+
       } catch(e) {
         console.error('Verify error:', e);
-        btn.textContent = 'Place Order — ' + btnLabels[currentMethod];
-        btn.disabled = false;
-        alert('Error: ' + e.message + '\nOrder #' + dbOrderId + ' — do not pay again.');
+        // Payment was taken — don't reset, show message with order ID
+        setBtnText('Contact Support');
+        alert('Payment received but verification failed.\nOrder #' + dbOrderId + '\nPlease contact support — do NOT pay again.');
       }
     },
+
     modal: {
       ondismiss: function() {
-        btn.textContent = 'Place Order — ' + btnLabels[currentMethod];
-        btn.disabled = false;
+        resetBtn();
       }
     }
   };
 
   const rzp = new Razorpay(options);
   rzp.on('payment.failed', function(response) {
-    btn.textContent = 'Place Order — ' + btnLabels[currentMethod];
-    btn.disabled = false;
-    alert('Payment failed: ' + response.error.description);
+    resetBtn();
+    showToast('Payment failed: ' + response.error.description);
   });
   rzp.open();
 }
 
+// ── Input error clear on type ─────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.co-input').forEach(input => {
     input.addEventListener('input', function() {
@@ -865,11 +858,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function showToast(msg) {
   const t = document.getElementById('toast');
-  if (t) {
-    t.textContent = msg;
-    t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 3000);
-  }
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
 }
 </script>
 {% endblock %}

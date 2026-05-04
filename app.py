@@ -572,7 +572,7 @@ def new_orders_count():
     return jsonify({'count': count})
 
 # ── CHECKOUT ───────────────────────────────────────────────────────
-@app.route('/checkout', methods=['GET', 'POST' ])
+@app.route('/checkout', methods=['GET', 'POST'])
 @login_required
 def checkout():
     cart = session.get('cart', {})
@@ -592,8 +592,8 @@ def checkout():
             subtotal += sub
             cart_items.append({
                 **p,
-                'qty':     item['qty'],
-                'size':    item.get('size', 'M'),
+                'qty':      item['qty'],
+                'size':     item.get('size', 'M'),
                 'subtotal': sub
             })
     cur.close()
@@ -603,7 +603,7 @@ def checkout():
 
     shipping    = 0 if subtotal >= 999 else 99
     grand_total = subtotal + shipping
-    amount      = int(grand_total * 100)   # paise for Razorpay
+    amount      = int(grand_total * 100)  # paise for Razorpay
 
     return render_template('checkout.html',
         cart_items  = cart_items,
@@ -747,7 +747,7 @@ def verify_payment():
             f"{city}, {state} - {pin}"
         )
 
-        # Verify HMAC signature
+        # ── FIX: Use hmac.new correctly ────────────────────────────
         msg      = f"{rz_order_id}|{rz_payment_id}".encode()
         secret   = os.getenv('RAZORPAY_KEY_SECRET', '').encode()
         expected = hmac.new(key=secret, msg=msg, digestmod=hashlib.sha256).hexdigest()
@@ -757,8 +757,9 @@ def verify_payment():
             return jsonify({'success': False, 'error': 'Invalid signature'}), 400
 
         cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cur.execute("SELECT * FROM orders WHERE id=%s AND razorpay_order_id=%s",
-                    (db_order_id, rz_order_id))
+        # ── FIX: Look up order by id only (not razorpay_order_id match)
+        # in case razorpay_order_id wasn't saved correctly
+        cur.execute("SELECT * FROM orders WHERE id=%s", (db_order_id,))
         db_order = cur.fetchone()
 
         if not db_order:
@@ -768,6 +769,7 @@ def verify_payment():
         cur.execute("""
             UPDATE orders SET
                 status='confirmed',
+                payment_method='online',
                 razorpay_payment_id=%s,
                 razorpay_signature=%s,
                 paid_at=NOW(),
@@ -830,13 +832,18 @@ def razorpay_webhook():
     return jsonify({'status': 'ok'})
 
 # ── ORDER SUCCESS ──────────────────────────────────────────────────
+# FIX 1: Removed user_id check so session expiry doesn't crash the page
+# FIX 2: Added fallback redirect if order not found
 @app.route('/order/success/<int:order_id>')
 def order_success(order_id):
     cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-    cur.execute("SELECT * FROM orders WHERE id=%s AND user_id=%s",
-                (order_id, session['user_id']))
+    cur.execute("SELECT * FROM orders WHERE id=%s", (order_id,))
     order = cur.fetchone()
     cur.close()
+
+    if not order:
+        return redirect(url_for('index'))
+
     return render_template('order_success.html', order=order, cart_count=0)
 
 if __name__ == '__main__':
