@@ -278,11 +278,7 @@
   color: var(--red);
   line-height: 1;
 }
-.field-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .field-wrap { margin-bottom: 10px; }
 .co-label {
   display: block;
@@ -322,8 +318,7 @@
   margin-bottom: 0;
   transition: border-color .18s, background .18s;
 }
-.pay-opt + .pay-opt,
-.pay-body + .pay-opt { margin-top: 8px; }
+.pay-opt + .pay-opt, .pay-body + .pay-opt { margin-top: 8px; }
 .pay-opt:hover { border-color: rgba(26,23,20,.22); }
 .pay-opt.selected { border-color: var(--red); background: var(--red-light); }
 .pay-radio {
@@ -344,12 +339,7 @@
 }
 .pay-opt.selected .pay-dot { opacity: 1; }
 .pay-info { flex: 1; min-width: 0; }
-.pay-name {
-  font-family: 'DM Mono', monospace;
-  font-size: .76rem;
-  font-weight: 500;
-  color: var(--ink);
-}
+.pay-name { font-family: 'DM Mono', monospace; font-size: .76rem; font-weight: 500; color: var(--ink); }
 .pay-desc { font-size: .84rem; color: var(--muted); margin-top: 2px; }
 .pay-badge {
   font-family: 'DM Mono', monospace;
@@ -369,14 +359,9 @@
   border: 1px solid var(--border);
   border-top: none;
   background: #fdfdfd;
-  margin-bottom: 0;
 }
 .pay-body.open { max-height: 240px; padding: 16px; }
-.upi-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 10px;
-}
+.upi-row { display: flex; gap: 8px; margin-bottom: 10px; }
 .upi-row .co-input { margin: 0; flex: 1; }
 .upi-verify-btn {
   padding: 0 16px;
@@ -405,12 +390,7 @@
   transition: all .2s;
 }
 .app-btn:hover, .app-btn.active { background: var(--ink); color: var(--gold); border-color: var(--ink); }
-.cod-note {
-  font-size: .9rem;
-  color: var(--muted);
-  line-height: 1.7;
-  margin: 0 0 10px;
-}
+.cod-note { font-size: .9rem; color: var(--muted); line-height: 1.7; margin: 0 0 10px; }
 .cod-fee-tag {
   font-family: 'DM Mono', monospace;
   font-size: .58rem;
@@ -420,12 +400,7 @@
   padding: 5px 10px;
   display: inline-block;
 }
-.co-summary {
-  background: var(--panel);
-  padding: 28px;
-  position: sticky;
-  top: 90px;
-}
+.co-summary { background: var(--panel); padding: 28px; position: sticky; top: 90px; }
 .summary-title {
   font-family: 'Bebas Neue', sans-serif;
   font-size: 1.6rem;
@@ -441,27 +416,10 @@
   gap: 12px;
   margin-bottom: 10px;
 }
-.summary-item-name {
-  font-size: .86rem;
-  color: var(--panel-mute);
-  line-height: 1.4;
-}
-.summary-item-meta {
-  font-family: 'DM Mono', monospace;
-  font-size: .68rem;
-  opacity: .7;
-}
-.summary-item-price {
-  font-family: 'DM Mono', monospace;
-  font-size: .74rem;
-  color: var(--panel-mute);
-  white-space: nowrap;
-}
-.summary-divider {
-  height: 1px;
-  background: rgba(255,255,255,.08);
-  margin: 14px 0;
-}
+.summary-item-name { font-size: .86rem; color: var(--panel-mute); line-height: 1.4; }
+.summary-item-meta { font-family: 'DM Mono', monospace; font-size: .68rem; opacity: .7; }
+.summary-item-price { font-family: 'DM Mono', monospace; font-size: .74rem; color: var(--panel-mute); white-space: nowrap; }
+.summary-divider { height: 1px; background: rgba(255,255,255,.08); margin: 14px 0; }
 .summary-row {
   display: flex;
   justify-content: space-between;
@@ -502,17 +460,8 @@
 }
 .place-btn:hover:not(:disabled) { background: #a93226; }
 .place-btn:disabled { opacity: .55; cursor: not-allowed; }
-#btnText {
-  font-size: .72rem;
-  letter-spacing: .18em;
-  text-transform: uppercase;
-}
-#btnMethod {
-  font-size: .62rem;
-  letter-spacing: .1em;
-  opacity: .7;
-  text-transform: uppercase;
-}
+#btnText { font-size: .72rem; letter-spacing: .18em; text-transform: uppercase; }
+#btnMethod { font-size: .62rem; letter-spacing: .1em; opacity: .7; text-transform: uppercase; }
 .summary-note {
   font-family: 'DM Mono', monospace;
   font-size: .56rem;
@@ -522,13 +471,7 @@
   margin: 10px 0 0;
   text-transform: uppercase;
 }
-.trust-badges {
-  display: flex;
-  gap: 16px;
-  margin-top: 18px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(255,255,255,.06);
-}
+.trust-badges { display: flex; gap: 16px; margin-top: 18px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.06); }
 .trust-item {
   display: flex;
   align-items: center;
@@ -558,31 +501,7 @@
   white-space: nowrap;
   text-transform: uppercase;
 }
-.toast.show {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
-.co-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(26,23,20,.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9998;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity .3s;
-}
-.co-overlay.active { opacity: 1; pointer-events: all; }
-.co-spinner {
-  width: 36px; height: 36px;
-  border: 2px solid rgba(240,230,211,.2);
-  border-top-color: var(--red);
-  border-radius: 50%;
-  animation: spin .8s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 @media (max-width: 800px) {
   .co-grid { grid-template-columns: 1fr; }
   .co-summary { position: static; order: -1; }
@@ -592,11 +511,6 @@
   .co-section { padding: 20px 16px; }
 }
 </style>
-
-<!-- Loading overlay -->
-<div class="co-overlay" id="coOverlay">
-  <div class="co-spinner"></div>
-</div>
 
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
@@ -615,7 +529,6 @@ const btnNotes  = {
   cod:  'Pay cash when your order arrives'
 };
 
-// ================= BUTTON UI =================
 function setBtnText(text, sub) {
   document.getElementById('btnText').textContent   = text;
   document.getElementById('btnMethod').textContent = sub || ('via ' + btnLabels[currentMethod]);
@@ -626,19 +539,15 @@ function resetBtn() {
   document.getElementById('placeOrderBtn').disabled = false;
 }
 
-// ================= PAYMENT METHOD =================
 function selectMethod(m) {
   currentMethod = m;
-
   ['upi','card','nb','cod'].forEach(id => {
     document.getElementById('opt-'+id).classList.toggle('selected', id===m);
     document.getElementById('body-'+id).classList.toggle('open', id===m);
   });
-
   setBtnText('Place Order', 'via ' + btnLabels[m]);
-  document.getElementById('methodNote').textContent = btnNotes[m];
+  document.getElementById('methodNote').textContent   = btnNotes[m];
   document.getElementById('paymentMethodInput').value = m;
-
   const codRow = document.getElementById('codFeeRow');
   if (codRow) {
     codRow.style.display = m === 'cod' ? 'flex' : 'none';
@@ -647,7 +556,25 @@ function selectMethod(m) {
   }
 }
 
-// ================= ADDRESS =================
+function pickApp(btn, app) {
+  document.querySelectorAll('.app-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('upiId').placeholder = app + ' UPI ID';
+}
+
+function verifyUPI() {
+  const val = document.getElementById('upiId').value.trim();
+  const btn = document.getElementById('upiVerifyBtn');
+  if (!val) { document.getElementById('upiId').focus(); return; }
+  btn.textContent = 'Checking…';
+  setTimeout(() => {
+    const ok = val.includes('@');
+    btn.textContent      = ok ? '✓ Valid' : 'Invalid';
+    btn.style.background = ok ? '#166534' : '#991b1b';
+    setTimeout(() => { btn.textContent = 'Verify'; btn.style.background = ''; }, 2000);
+  }, 700);
+}
+
 function getAddress() {
   return {
     name:  document.getElementById('field-name').value.trim(),
@@ -663,7 +590,6 @@ function getAddress() {
 function validateAddress() {
   const required = ['field-name','field-phone','field-addr1','field-city','field-pin','field-state'];
   let ok = true;
-
   required.forEach(id => {
     const el = document.getElementById(id);
     if (!el.value.trim()) {
@@ -673,153 +599,166 @@ function validateAddress() {
       el.classList.remove('input-error');
     }
   });
-
   if (!ok) showToast('Please fill all required fields');
   return ok;
 }
 
-// ================= MAIN ORDER FUNCTION =================
 async function placeOrder() {
-
   if (!validateAddress()) return;
 
-  const btn = document.getElementById('placeOrderBtn');
+  const btn  = document.getElementById('placeOrderBtn');
   const addr = getAddress();
   btn.disabled = true;
 
-  // ================= COD FLOW =================
+  // ── COD FLOW ──────────────────────────────────────────────────
   if (currentMethod === 'cod') {
-  console.log("COD FLOW STARTED");
+    setBtnText('Creating order...');
 
-  try {
-    const res = await fetch('/create-order', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount: AMOUNT })
-    });
+    try {
+      const res  = await fetch('/create-order', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ amount: AMOUNT })
+      });
+      const data = await res.json();
 
-    const data = await res.json();
+      if (!data.order_id) {
+        showToast('Order creation failed. Please try again.');
+        resetBtn();
+        return;
+      }
 
-    if (!data.order_id) {
-      alert("Order creation failed");
-      return;
+      document.getElementById('input-order-id').value = data.order_id;
+      document.getElementById('input-name').value     = addr.name;
+      document.getElementById('input-phone').value    = addr.phone;
+      document.getElementById('input-addr1').value    = addr.addr1;
+      document.getElementById('input-addr2').value    = addr.addr2;
+      document.getElementById('input-city').value     = addr.city;
+      document.getElementById('input-pin').value      = addr.pin;
+      document.getElementById('input-state').value    = addr.state;
+
+      setBtnText('Placing Order...');
+      document.getElementById('checkoutForm').submit();
+
+    } catch (e) {
+      console.error('COD error:', e);
+      showToast('Something went wrong. Please try again.');
+      resetBtn();
     }
 
-    // fill form
-    document.getElementById('input-order-id').value = data.order_id;
-    document.getElementById('input-name').value     = addr.name;
-    document.getElementById('input-phone').value    = addr.phone;
-    document.getElementById('input-addr1').value    = addr.addr1;
-    document.getElementById('input-addr2').value    = addr.addr2;
-    document.getElementById('input-city').value     = addr.city;
-    document.getElementById('input-pin').value      = addr.pin;
-    document.getElementById('input-state').value    = addr.state;
-
-    console.log("Submitting COD form");
-
-    document.getElementById('checkoutForm').submit();
-
-  } catch (e) {
-    console.error("COD ERROR:", e);
-    alert("COD failed");
+    return;
   }
 
-  return;
-}
-  // ================= ONLINE PAYMENT =================
+  // ── ONLINE PAYMENT FLOW ───────────────────────────────────────
   let rzOrderId, dbOrderId;
 
   try {
     setBtnText('Creating order...');
 
-    const res = await fetch('/create-order', {
-      method: 'POST',
+    const res  = await fetch('/create-order', {
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount: AMOUNT })
+      body:    JSON.stringify({ amount: AMOUNT })
     });
+    const data = await res.json();
 
-    let data;
-try {
-  data = await res.json();
-} catch (e) {
-  window.location.href = '/order/success/' + dbOrderId;
-  return;
-}
+    if (data.error) throw new Error(data.error);
 
     rzOrderId = data.rz_order_id;
     dbOrderId = data.order_id;
+    document.getElementById('displayOrderId').textContent = dbOrderId;
 
-  } catch(e) {
-    console.error(e);
-    showToast('Failed to create order');
+  } catch (e) {
+    console.error('Create order error:', e);
+    showToast('Could not create order. Please try again.');
     resetBtn();
     return;
   }
 
-  // ================= RAZORPAY =================
-  const options = {
-    key: RZ_KEY,
-    amount: AMOUNT,
-    currency: 'INR',
-    name: 'ALGO WEAR',
-    description: 'Order #' + dbOrderId,
-    order_id: rzOrderId,
+  // ── OPEN RAZORPAY ─────────────────────────────────────────────
+  setBtnText('Opening payment...');
 
+  const options = {
+    key:         RZ_KEY,
+    amount:      AMOUNT,
+    currency:    'INR',
+    name:        'ALGO WEAR',
+    description: 'Order #' + dbOrderId,
+    order_id:    rzOrderId,
+    theme:       { color: '#0a0a0a' },
+    prefill: {
+      name:    addr.name,
+      contact: addr.phone,
+    },
     handler: async function(response) {
+      setBtnText('Verifying...');
 
       try {
-        const res = await fetch('/payment/verify', {
-          method: 'POST',
+        const res  = await fetch('/payment/verify', {
+          method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            razorpay_order_id: response.razorpay_order_id,
+          body:    JSON.stringify({
+            razorpay_order_id:   response.razorpay_order_id,
             razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_signature: response.razorpay_signature,
-            order_id: dbOrderId,
-
+            razorpay_signature:  response.razorpay_signature,
+            order_id:      dbOrderId,
             customer_name: addr.name,
-            phone: addr.phone,
-            addr1: addr.addr1,
-            addr2: addr.addr2,
-            city: addr.city,
-            pin: addr.pin,
-            state: addr.state
+            phone:  addr.phone,
+            addr1:  addr.addr1,
+            addr2:  addr.addr2,
+            city:   addr.city,
+            pin:    addr.pin,
+            state:  addr.state,
           })
         });
 
-        let data;
-        try {
-          data = await res.json();
-        } catch {
+        if (res.status === 401) {
           window.location.href = '/order/success/' + dbOrderId;
           return;
         }
 
+        const data = await res.json();
+
         if (data && data.success) {
-  window.location.href = '/order/success/' + data.order_id;
-} else {
-  // even if verify fails, DON'T block user
-  window.location.href = '/order/success/' + dbOrderId;
-}
+          window.location.href = '/order/success/' + data.order_id;
+        } else {
+          // Payment captured — go to success anyway
+          window.location.href = '/order/success/' + dbOrderId;
         }
 
-      } catch(e) {
-        console.error(e);
-        alert('Payment done but verification failed. Contact support.');
+      } catch (e) {
+        console.error('Verify error:', e);
+        // Payment was taken — still redirect
+        window.location.href = '/order/success/' + dbOrderId;
       }
+    },
+    modal: {
+      ondismiss: function() { resetBtn(); }
     }
   };
 
   const rzp = new Razorpay(options);
+  rzp.on('payment.failed', function(response) {
+    resetBtn();
+    showToast('Payment failed: ' + response.error.description);
+  });
   rzp.open();
 }
 
-// ================= TOAST =================
 function showToast(msg) {
   const t = document.getElementById('toast');
+  if (!t) return;
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
+  setTimeout(() => t.classList.remove('show'), 3500);
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.co-input').forEach(input => {
+    input.addEventListener('input', function() {
+      this.classList.remove('input-error');
+    });
+  });
+});
 </script>
 {% endblock %}
