@@ -656,149 +656,159 @@ def create_order():
 @login_required
 def place_order():
     try:
-        order_id = request.form.get('order_id', '').strip()
+        order_id = request.form.get('order_id')
+
         if not order_id:
-            flash("Invalid order", "error")
             return redirect(url_for('cart'))
-
-        name  = request.form.get('name',  '').strip()
-        phone = request.form.get('phone', '').strip()
-        addr1 = request.form.get('addr1', '').strip()
-        addr2 = request.form.get('addr2', '').strip()
-        city  = request.form.get('city',  '').strip()
-        pin   = request.form.get('pin',   '').strip()
-        state = request.form.get('state', '').strip()
-
-        if not all([name, phone, addr1, city, pin, state]):
-            flash("Please fill all required fields", "error")
-            return redirect(url_for('checkout'))
-
-        address = f"{addr1}{', ' + addr2 if addr2 else ''}, {city}, {state} - {pin}"
 
         cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
 
-        cur.execute("SELECT * FROM orders WHERE id=%s AND user_id=%s",
-                    (order_id, session['user_id']))
+        cur.execute("""
+            SELECT * FROM orders 
+            WHERE id=%s AND user_id=%s
+        """, (order_id, session['user_id']))
+
         order = cur.fetchone()
 
         if not order:
             cur.close()
-            flash("Order not found", "error")
             return redirect(url_for('cart'))
 
+        address = f"{request.form.get('addr1')}, {request.form.get('city')}, {request.form.get('state')} - {request.form.get('pin')}"
+
         cur.execute("""
-            UPDATE orders
-            SET status='confirmed', payment_method='cod', address=%s, phone=%s
+            UPDATE orders SET
+                status='confirmed',
+                payment_method='cod',
+                address=%s,
+                phone=%s
             WHERE id=%s
-        """, (address, phone, order_id))
+        """, (address, request.form.get('phone'), order_id))
+
         mysql.connection.commit()
 
         cur.execute("SELECT email FROM users WHERE id=%s", (session['user_id'],))
         user = cur.fetchone()
-        cur.close()
 
         try:
-            send_order_notification(
-                order_id       = order_id,
-                total          = order['total_amount'],
-                payment_method = 'cod',
-                customer_name  = name,
-                customer_email = user['email'],
-                address        = address,
-                phone          = phone
-            )
+            if user:
+                send_order_notification(
+                    order_id=order_id,
+                    total=order['total_amount'],
+                    payment_method='cod',
+                    customer_name=request.form.get('name'),
+                    customer_email=user['email'],
+                    address=address,
+                    phone=request.form.get('phone')
+                )
         except Exception as e:
-            print(f"[MAIL ERROR] {e}")
+            print("[MAIL ERROR]", e)
+
+        cur.close()
 
         session.pop('cart', None)
+
         return redirect(url_for('order_success', order_id=order_id))
 
     except Exception as e:
-        print(f"[PLACE ORDER ERROR] {e}")
-        import traceback; traceback.print_exc()
+        print("[COD ERROR]", e)
         return "Server Error", 500
 
 # ── PAYMENT VERIFY (Razorpay callback) ─────────────────────────────
 @app.route('/payment/verify', methods=['POST'])
 def verify_payment():
     try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'success': False, 'error': 'No data received'}), 400
+        data = request.get_json(force=True)
 
-        rz_order_id   = data.get('razorpay_order_id',   '')
-        rz_payment_id = data.get('razorpay_payment_id', '')
-        rz_signature  = data.get('razorpay_signature',  '')
+        print("[VERIFY DATA]", data)
+
+        rz_order_id   = data.get('razorpay_order_id')
+        rz_payment_id = data.get('razorpay_payment_id')
+        rz_signature  = data.get('razorpay_signature')
         db_order_id   = int(data.get('order_id', 0))
 
-        customer_name = data.get('customer_name', 'Customer')
-        phone  = data.get('phone',  '')
-        addr1  = data.get('addr1',  '')
-        addr2  = data.get('addr2',  '')
-        city   = data.get('city',   '')
-        pin    = data.get('pin',    '')
-        state  = data.get('state',  '')
+        if not all([rz_order_id, rz_payment_id, rz_signature, db_order_id]):
+            return jsonify({'success': False, 'error': 'Missing fields'}), 400
 
-        delivery_address = (
-            f"{addr1}"
-            f"{', ' + addr2 if addr2 else ''}, "
-            f"{city}, {state} - {pin}"
-        )
+        # ✅ Verify signature safely
+        msg = f"{rz_order_id}|{rz_payment_id}".encode()
+        secret = os.getenv('RAZORPAY_KEY_SECRET', '').encode()
 
-        # Verify HMAC signature
-        msg      = f"{rz_order_id}|{rz_payment_id}".encode()
-        secret   = os.getenv('RAZORPAY_KEY_SECRET', '').encode()
-        expected = hmac.new(secret, msg, hashlib.sha256).hexdigest()
+        generated_signature = hmac.new(secret, msg, hashlib.sha256).hexdigest()
 
-        if not hmac.compare_digest(expected, rz_signature):
-            print(f"[PAYMENT] Signature mismatch for order {db_order_id}")
+        if not hmac.compare_digest(generated_signature, rz_signature):
+            print("[SIGNATURE FAILED]")
             return jsonify({'success': False, 'error': 'Invalid signature'}), 400
 
         cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cur.execute("SELECT * FROM orders WHERE id=%s AND razorpay_order_id=%s",
-                    (db_order_id, rz_order_id))
-        db_order = cur.fetchone()
 
-        if not db_order:
+        cur.execute("""
+            SELECT * FROM orders 
+            WHERE id=%s AND razorpay_order_id=%s
+        """, (db_order_id, rz_order_id))
+
+        order = cur.fetchone()
+
+        if not order:
             cur.close()
             return jsonify({'success': False, 'error': 'Order not found'}), 404
 
+        # 📦 Address build
+        address = f"{data.get('addr1','')}"
+        if data.get('addr2'):
+            address += f", {data.get('addr2')}"
+        address += f", {data.get('city','')}, {data.get('state','')} - {data.get('pin','')}"
+
+        # ✅ Update order
         cur.execute("""
             UPDATE orders SET
                 status='confirmed',
+                payment_method='online',
                 razorpay_payment_id=%s,
                 razorpay_signature=%s,
                 paid_at=NOW(),
                 address=%s,
                 phone=%s
             WHERE id=%s
-        """, (rz_payment_id, rz_signature, delivery_address, phone, db_order_id))
-        mysql.connection.commit()
-        print(f"[PAYMENT] Order {db_order_id} confirmed")
+        """, (
+            rz_payment_id,
+            rz_signature,
+            address,
+            data.get('phone'),
+            db_order_id
+        ))
 
-        cur.execute("SELECT email, name FROM users WHERE id=%s", (db_order['user_id'],))
-        user = cur.fetchone()
+        mysql.connection.commit()
+
+        # 📧 Send email (safe)
+        try:
+            cur.execute("SELECT email FROM users WHERE id=%s", (order['user_id'],))
+            user = cur.fetchone()
+
+            if user:
+                send_order_notification(
+                    order_id=db_order_id,
+                    total=order['total_amount'],
+                    payment_method='online',
+                    customer_name=data.get('customer_name', 'Customer'),
+                    customer_email=user['email'],
+                    address=address,
+                    phone=data.get('phone')
+                )
+        except Exception as e:
+            print("[MAIL ERROR]", e)
+
         cur.close()
 
-        if user:
-            try:
-                send_order_notification(
-                    order_id       = db_order_id,
-                    total          = db_order['total_amount'],
-                    payment_method = 'online',
-                    customer_name  = customer_name,
-                    customer_email = user['email'],
-                    address        = delivery_address,
-                    phone          = phone
-                )
-            except Exception as e:
-                print(f"[MAIL ERROR] {e}")
-
         session.pop('cart', None)
-        return jsonify({'success': True, 'order_id': db_order_id})
+
+        return jsonify({
+            'success': True,
+            'order_id': db_order_id
+        })
 
     except Exception as e:
-        print(f"[PAYMENT ERROR] {e}")
+        print("[VERIFY ERROR]", str(e))
         import traceback; traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 

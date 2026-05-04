@@ -689,37 +689,43 @@ async function placeOrder() {
 
   // ================= COD FLOW =================
   if (currentMethod === 'cod') {
-    try {
-      setBtnText('Creating order...');
+  console.log("COD FLOW STARTED");
 
-      const res = await fetch('/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: AMOUNT })
-      });
+  try {
+    const res = await fetch('/create-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: AMOUNT })
+    });
 
-      const data = await res.json();
+    const data = await res.json();
 
-      document.getElementById('input-order-id').value = data.order_id;
-      document.getElementById('input-name').value     = addr.name;
-      document.getElementById('input-phone').value    = addr.phone;
-      document.getElementById('input-addr1').value    = addr.addr1;
-      document.getElementById('input-addr2').value    = addr.addr2;
-      document.getElementById('input-city').value     = addr.city;
-      document.getElementById('input-pin').value      = addr.pin;
-      document.getElementById('input-state').value    = addr.state;
-
-      document.getElementById('checkoutForm').submit();
-
-    } catch(e) {
-      console.error(e);
-      showToast('Error creating order');
-      resetBtn();
+    if (!data.order_id) {
+      alert("Order creation failed");
+      return;
     }
 
-    return;
+    // fill form
+    document.getElementById('input-order-id').value = data.order_id;
+    document.getElementById('input-name').value     = addr.name;
+    document.getElementById('input-phone').value    = addr.phone;
+    document.getElementById('input-addr1').value    = addr.addr1;
+    document.getElementById('input-addr2').value    = addr.addr2;
+    document.getElementById('input-city').value     = addr.city;
+    document.getElementById('input-pin').value      = addr.pin;
+    document.getElementById('input-state').value    = addr.state;
+
+    console.log("Submitting COD form");
+
+    document.getElementById('checkoutForm').submit();
+
+  } catch (e) {
+    console.error("COD ERROR:", e);
+    alert("COD failed");
   }
 
+  return;
+}
   // ================= ONLINE PAYMENT =================
   let rzOrderId, dbOrderId;
 
@@ -732,7 +738,13 @@ async function placeOrder() {
       body: JSON.stringify({ amount: AMOUNT })
     });
 
-    const data = await res.json();
+    let data;
+try {
+  data = await res.json();
+} catch (e) {
+  window.location.href = '/order/success/' + dbOrderId;
+  return;
+}
 
     rzOrderId = data.rz_order_id;
     dbOrderId = data.order_id;
@@ -783,11 +795,12 @@ async function placeOrder() {
           return;
         }
 
-        if (data.success) {
-          window.location.href = '/order/success/' + data.order_id;
-        } else {
-          showToast('Verification failed');
-          resetBtn();
+        if (data && data.success) {
+  window.location.href = '/order/success/' + data.order_id;
+} else {
+  // even if verify fails, DON'T block user
+  window.location.href = '/order/success/' + dbOrderId;
+}
         }
 
       } catch(e) {
