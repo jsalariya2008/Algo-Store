@@ -848,5 +848,16 @@ def order_success(order_id):
         return redirect(url_for('index'))
     return render_template('order_success.html', order=order, cart_count=0)
 
+#-- TEST MAIL ROUTE (for verifying email config) ─────────────────────
+@app.route('/test-mail')
+def test_mail():
+    try:
+        msg = Message('ALGO Test Mail', sender=ADMIN_EMAIL, recipients=[ADMIN_EMAIL])
+        msg.body = 'If you see this, email is working!'
+        mail.send(msg)
+        return 'SUCCESS — check your inbox'
+    except Exception as e:
+        return f'FAILED: {str(e)}'
+
 if __name__ == '__main__':
     app.run(debug=True)
