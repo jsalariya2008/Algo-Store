@@ -54,12 +54,13 @@ mysql = MySQL(app)
 # ── Mail ───────────────────────────────────────────────────────────
 ADMIN_EMAIL = 'algowear.co@gmail.com'
 
-app.config['MAIL_SERVER']   = 'smtp.gmail.com'
-app.config['MAIL_PORT']     = int(os.getenv('MAIL_PORT', 465))
-app.config['MAIL_USE_TLS']  = False
-app.config['MAIL_USE_SSL']  = True
-app.config['MAIL_USERNAME'] = ADMIN_EMAIL
-app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+app.config['MAIL_SERVER']        = 'smtp.gmail.com'
+app.config['MAIL_PORT']          = 587
+app.config['MAIL_USE_TLS']       = True
+app.config['MAIL_USE_SSL']       = False
+app.config['MAIL_USERNAME']      = ADMIN_EMAIL
+app.config['MAIL_PASSWORD']      = os.getenv('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = ADMIN_EMAIL
 
 mail = Mail(app)
 
