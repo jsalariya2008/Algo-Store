@@ -13,7 +13,6 @@ import hmac
 import hashlib
 import razorpay
 import re
-import threading  # ← ADDED
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -61,6 +60,7 @@ app.config['MAIL_USE_SSL']       = False
 app.config['MAIL_USERNAME']      = ADMIN_EMAIL
 app.config['MAIL_PASSWORD']      = os.getenv('MAIL_PASSWORD')
 app.config['MAIL_DEFAULT_SENDER'] = ADMIN_EMAIL
+app.config['MAIL_TIMEOUT']       = 10
 
 mail = Mail(app)
 
@@ -82,8 +82,6 @@ def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if 'user_id' not in session:
-            if request.is_json or request.headers.get('Content-Type','').startswith('application/json'):
-                return jsonify({'success': False, 'error': 'session_expired'}), 401
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated
@@ -118,6 +116,7 @@ def send_otp(email, otp):
 def send_order_notification(order_id, total, payment_method, customer_name,
                             customer_email, address='', phone=''):
     try:
+        # Admin alert
         admin_msg = Message(
             subject=f'New ALGO Order #{order_id} — Rs.{total}',
             sender=ADMIN_EMAIL,
@@ -156,6 +155,7 @@ View in admin : https://algo-store.onrender.com/admin/orders
         mail.send(admin_msg)
         print(f"[MAIL] Admin notified for order #{order_id}")
 
+        # Customer confirmation
         customer_msg = Message(
             subject=f'Your ALGO Order #{order_id} is Confirmed!',
             sender=ADMIN_EMAIL,
@@ -194,26 +194,9 @@ algowear.co@gmail.com
         print(f"[MAIL] Confirmation sent to {customer_email}")
 
     except Exception as e:
+        import traceback
         print(f"[MAIL ERROR] Order #{order_id} notification failed: {e}")
-
-
-# ── KEY FIX: Fire-and-forget email in background thread ────────────
-# This prevents email SMTP delay from blocking the gunicorn worker
-def notify_async(order_id, total, payment_method, customer_name,
-                 customer_email, address='', phone=''):
-    def _send():
-        with app.app_context():
-            send_order_notification(
-                order_id       = order_id,
-                total          = total,
-                payment_method = payment_method,
-                customer_name  = customer_name,
-                customer_email = customer_email,
-                address        = address,
-                phone          = phone
-            )
-    threading.Thread(target=_send, daemon=True).start()
-
+        traceback.print_exc()
 
 # ── HOMEPAGE ───────────────────────────────────────────────────────
 @app.route('/')
@@ -520,12 +503,14 @@ def lookbook():
     cur.execute("SELECT * FROM lookbook WHERE is_active=1 ORDER BY chapter ASC, created_at ASC")
     images = cur.fetchall()
     cur.close()
+
     chapters = {}
     for img in images:
         ch = img['chapter']
         if ch not in chapters:
             chapters[ch] = []
         chapters[ch].append(img)
+
     return render_template('lookbook.html', chapters=chapters, cart_count=get_cart_count())
 
 @app.route('/admin/lookbook')
@@ -544,6 +529,7 @@ def admin_lookbook_add():
     chapter  = int(request.form.get('chapter', 1))
     position = request.form.get('position', 'normal')
     image_url = ''
+
     if 'image' in request.files:
         file = request.files['image']
         if file and allowed_file(file.filename):
@@ -552,9 +538,11 @@ def admin_lookbook_add():
                 transformation=[{'width': 1200, 'quality': 'auto', 'crop': 'limit'}]
             )
             image_url = result['secure_url']
+
     if not image_url:
         flash('Please upload an image.', 'error')
         return redirect(url_for('admin_lookbook'))
+
     cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
     cur.execute("INSERT INTO lookbook (title, image_url, chapter, position) VALUES (%s, %s, %s, %s)",
                 (title, image_url, chapter, position))
@@ -587,7 +575,7 @@ def new_orders_count():
     return jsonify({'count': count})
 
 # ── CHECKOUT ───────────────────────────────────────────────────────
-@app.route('/checkout', methods=['GET', 'POST'])
+@app.route('/checkout', methods=['GET'])
 @login_required
 def checkout():
     cart = session.get('cart', {})
@@ -607,8 +595,8 @@ def checkout():
             subtotal += sub
             cart_items.append({
                 **p,
-                'qty':      item['qty'],
-                'size':     item.get('size', 'M'),
+                'qty':     item['qty'],
+                'size':    item.get('size', 'M'),
                 'subtotal': sub
             })
     cur.close()
@@ -618,7 +606,7 @@ def checkout():
 
     shipping    = 0 if subtotal >= 999 else 99
     grand_total = subtotal + shipping
-    amount      = int(grand_total * 100)
+    amount      = int(grand_total * 100)   # paise for Razorpay
 
     return render_template('checkout.html',
         cart_items  = cart_items,
@@ -629,7 +617,7 @@ def checkout():
         cart_count  = 0,
     )
 
-# ── CREATE ORDER ───────────────────────────────────────────────────
+# ── CREATE ORDER (called by JS before opening Razorpay) ────────────
 @app.route('/create-order', methods=['POST'])
 @login_required
 def create_order():
@@ -668,7 +656,7 @@ def create_order():
         import traceback; traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-# ── PLACE ORDER (COD) ──────────────────────────────────────────────
+# ── PLACE ORDER (COD only — form POST) ─────────────────────────────
 @app.route('/place_order', methods=['POST'])
 @login_required
 def place_order():
@@ -693,6 +681,7 @@ def place_order():
         address = f"{addr1}{', ' + addr2 if addr2 else ''}, {city}, {state} - {pin}"
 
         cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
+
         cur.execute("SELECT * FROM orders WHERE id=%s AND user_id=%s",
                     (order_id, session['user_id']))
         order = cur.fetchone()
@@ -713,9 +702,8 @@ def place_order():
         user = cur.fetchone()
         cur.close()
 
-        # ── Send email in background — does NOT block the redirect ──
-        if user:
-            notify_async(
+        try:
+            send_order_notification(
                 order_id       = order_id,
                 total          = order['total_amount'],
                 payment_method = 'cod',
@@ -724,6 +712,10 @@ def place_order():
                 address        = address,
                 phone          = phone
             )
+        except Exception as e:
+            import traceback
+            print(f"[MAIL ERROR COD] {e}")
+            traceback.print_exc()
 
         session.pop('cart', None)
         return redirect(url_for('order_success', order_id=order_id))
@@ -733,7 +725,7 @@ def place_order():
         import traceback; traceback.print_exc()
         return "Server Error", 500
 
-# ── PAYMENT VERIFY ─────────────────────────────────────────────────
+# ── PAYMENT VERIFY (Razorpay callback) ─────────────────────────────
 @app.route('/payment/verify', methods=['POST'])
 def verify_payment():
     try:
@@ -760,16 +752,18 @@ def verify_payment():
             f"{city}, {state} - {pin}"
         )
 
+        # Verify HMAC signature
         msg      = f"{rz_order_id}|{rz_payment_id}".encode()
         secret   = os.getenv('RAZORPAY_KEY_SECRET', '').encode()
-        expected = hmac.new(secret, msg, hashlib.sha256).hexdigest()
+        expected = hmac.new(key=secret, msg=msg, digestmod=hashlib.sha256).hexdigest()
 
         if not hmac.compare_digest(expected, rz_signature):
             print(f"[PAYMENT] Signature mismatch for order {db_order_id}")
             return jsonify({'success': False, 'error': 'Invalid signature'}), 400
 
         cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-        cur.execute("SELECT * FROM orders WHERE id=%s", (db_order_id,))
+        cur.execute("SELECT * FROM orders WHERE id=%s AND razorpay_order_id=%s",
+                    (db_order_id, rz_order_id))
         db_order = cur.fetchone()
 
         if not db_order:
@@ -779,7 +773,6 @@ def verify_payment():
         cur.execute("""
             UPDATE orders SET
                 status='confirmed',
-                payment_method='online',
                 razorpay_payment_id=%s,
                 razorpay_signature=%s,
                 paid_at=NOW(),
@@ -794,17 +787,21 @@ def verify_payment():
         user = cur.fetchone()
         cur.close()
 
-        # ── Send email in background — does NOT block the response ──
         if user:
-            notify_async(
-                order_id       = db_order_id,
-                total          = db_order['total_amount'],
-                payment_method = 'online',
-                customer_name  = customer_name,
-                customer_email = user['email'],
-                address        = delivery_address,
-                phone          = phone
-            )
+            try:
+                send_order_notification(
+                    order_id       = db_order_id,
+                    total          = db_order['total_amount'],
+                    payment_method = 'online',
+                    customer_name  = customer_name,
+                    customer_email = user['email'],
+                    address        = delivery_address,
+                    phone          = phone
+                )
+            except Exception as e:
+                import traceback
+                print(f"[MAIL ERROR RZ] {e}")
+                traceback.print_exc()
 
         session.pop('cart', None)
         return jsonify({'success': True, 'order_id': db_order_id})
@@ -841,25 +838,14 @@ def razorpay_webhook():
 
 # ── ORDER SUCCESS ──────────────────────────────────────────────────
 @app.route('/order/success/<int:order_id>')
+@login_required
 def order_success(order_id):
     cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-    cur.execute("SELECT * FROM orders WHERE id=%s", (order_id,))
+    cur.execute("SELECT * FROM orders WHERE id=%s AND user_id=%s",
+                (order_id, session['user_id']))
     order = cur.fetchone()
     cur.close()
-    if not order:
-        return redirect(url_for('index'))
     return render_template('order_success.html', order=order, cart_count=0)
-
-#-- TEST MAIL ROUTE (for verifying email config) ─────────────────────
-@app.route('/test-mail')
-def test_mail():
-    try:
-        msg = Message('ALGO Test Mail', sender=ADMIN_EMAIL, recipients=[ADMIN_EMAIL])
-        msg.body = 'If you see this, email is working!'
-        mail.send(msg)
-        return 'SUCCESS — check your inbox'
-    except Exception as e:
-        return f'FAILED: {str(e)}'
 
 if __name__ == '__main__':
     app.run(debug=True)
